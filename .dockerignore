@@ -1,0 +1,9 @@
+.venv
+**/node_modules
+web/dist
+tools/logs
+**/__pycache__
+.git
+docs
+*.md
+assets

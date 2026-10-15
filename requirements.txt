@@ -1,0 +1,13 @@
+# DemandFoundry runtime (Cloud Run). Gemini is reached only through Vertex AI.
+google-adk==2.12.0
+google-cloud-agentplatform[agent-engines]==2.5.0
+google-genai==2.31.0
+google-cloud-firestore==2.34.1
+google-cloud-storage==3.17.1
+google-auth==2.62.0
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+pydantic==2.14.1
+pillow==12.3.0
+httpx==0.28.1

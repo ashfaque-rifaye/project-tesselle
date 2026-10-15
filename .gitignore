@@ -1,0 +1,38 @@
+# Secrets and credentials — never commit (hackathon disqualification rule)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+application_default_credentials.json
+
+# Local logs and test output
+tools/logs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+.next/
+.firebase/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Private notes (billing account details, livestream transcripts) - never published
+docs/private/
+assets/
+tools/video/node_modules/
+tools/logs/
+firebase-debug.log
+.firebase/

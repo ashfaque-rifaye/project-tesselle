@@ -1,0 +1,516 @@
+"""Project Tesselle API + web app (Cloud Run).
+
+Long-running agent work streams NDJSON progress lines ({"type": "progress" | "tool" | "text" |
+"result" | "error"}) so the UI shows honest progress instead of decorative spinners.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import secrets
+from typing import Any, AsyncIterator, Optional
+
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+from . import catalog, config, gemini, services, store
+from .agents import concierge
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("tesselle")
+
+app = FastAPI(title="Project Tesselle", version="2.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://project-tesselle.web.app",
+        "https://project-tesselle.firebaseapp.com",
+        "https://tesselle-demandfoundry.web.app",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Visitor-Id"],
+    max_age=3600,
+)
+
+MAX_UPLOAD = 8 * 1024 * 1024
+MAX_VIDEO = 20 * 1024 * 1024  # Gemini inline request limit
+
+
+@app.exception_handler(services.ServiceError)
+async def service_error(_: Request, exc: services.ServiceError):
+    return JSONResponse({"error": str(exc), "details": exc.details}, status_code=exc.status)
+
+
+@app.exception_handler(gemini.BudgetExceeded)
+async def budget_error(_: Request, exc: gemini.BudgetExceeded):
+    return JSONResponse({"error": str(exc)}, status_code=429)
+
+
+def _ndjson(gen: AsyncIterator[dict[str, Any]]) -> StreamingResponse:
+    async def body():
+        try:
+            async for ev in gen:
+                yield json.dumps(ev, ensure_ascii=False, default=str) + "\n"
+        except services.ServiceError as e:
+            yield json.dumps({"type": "error", "message": str(e), "details": e.details}) + "\n"
+        except gemini.BudgetExceeded as e:
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+        except Exception as e:  # never leave the UI hanging on a broken stream
+            log.exception("stream failed")
+            yield json.dumps({"type": "error", "message": f"Something went wrong: {type(e).__name__}. Nothing was sent or committed."}) + "\n"
+
+    return StreamingResponse(body(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no", "Cache-Control": "no-store"})
+
+
+_EXT_MIME = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".jpg": "image/jpeg",
+             ".jpeg": "image/jpeg", ".png": "image/png", ".heic": "image/heic", ".webp": "image/webp"}
+
+
+async def _read(upload: Optional[UploadFile], limit: int = MAX_UPLOAD) -> Optional[tuple[bytes, str]]:
+    if upload is None or not upload.filename:
+        return None
+    data = await upload.read()
+    if not data:
+        return None
+    if len(data) > limit:
+        raise services.ServiceError(f"File is larger than {limit // (1024 * 1024)} MB.", 413)
+    mime = (upload.content_type or "").split(";")[0]
+    if not mime or mime == "application/octet-stream":
+        mime = _EXT_MIME.get(os.path.splitext(upload.filename.lower())[1], "application/octet-stream")
+    return data, mime
+
+
+async def _media(*uploads: Optional[UploadFile]) -> tuple[Optional[tuple[bytes, str]], Optional[tuple[bytes, str]]]:
+    """Sort uploaded files into (image, video) whatever field they arrived in."""
+    image = video = None
+    for up in uploads:
+        if up is None or not up.filename:
+            continue
+        peek = (up.content_type or "").split(";")[0] or _EXT_MIME.get(os.path.splitext(up.filename.lower())[1], "")
+        f = await _read(up, MAX_VIDEO if peek.startswith("video/") else MAX_UPLOAD)
+        if f and f[1].startswith("video/"):
+            video = video or f
+        elif f:
+            image = image or f
+    return image, video
+
+
+async def _state(pid: str) -> dict[str, Any]:
+    state = await store.full_state(pid)
+    if state is None:
+        raise HTTPException(404, "Project not found")
+    state["next_decision"] = services.next_decision(state)
+    return state
+
+
+def _visitor(x_visitor_id: Optional[str]) -> str:
+    v = (x_visitor_id or "").strip()
+    if not v or len(v) > 64:
+        raise HTTPException(400, "Missing visitor id")
+    return v
+
+
+# ---- Meta -------------------------------------------------------------------------------------
+
+
+@app.get("/api/health")
+async def health():
+    return {"ok": True, "project": config.PROJECT, "model": config.MODEL_REASONING, "vertex": True}
+
+
+@app.get("/api/meta")
+async def meta():
+    return {
+        "models": {
+            "reasoning": config.MODEL_REASONING,
+            "image": config.MODEL_IMAGE,
+            "embedding": config.MODEL_EMBED,
+            "tts": config.MODEL_TTS,
+        },
+        "agent_engine": f"projects/{config.PROJECT}/locations/{config.AGENT_ENGINE_LOCATION}/reasoningEngines/{config.AGENT_ENGINE_ID}",
+        "region": config.REGION,
+        "catalog_note": catalog.NOTE,
+        "sellers": list(catalog.SELLERS.values()),
+        "demo": catalog.DEMO | {"desk_photo_path": "demo/desk.png"},
+    }
+
+
+# ---- Projects ---------------------------------------------------------------------------------
+
+
+class NewProject(BaseModel):
+    title: str = "New project"
+    demo: bool = False
+
+
+@app.post("/api/projects")
+async def create_project(body: NewProject, x_visitor_id: Optional[str] = Header(None)):
+    owner = _visitor(x_visitor_id)
+    title = "Desk organiser - guided demo" if body.demo else (body.title or "New project")
+    p = await store.create_project(owner, title, body.demo)
+    await store.log(p["id"], "system", "Project created" + (" (guided demo with fictional sellers)" if body.demo else ""))
+    if body.demo:
+        try:
+            await concierge.seed_demo_memory(owner)
+            await store.log(p["id"], "agent:missionlock", "Demo profile: two preferences from an earlier project are in Memory Bank",
+                            kind="memory", detail="'I rent - no drilling' and 'prefer bamboo or light wood'. Seeded for the guided demo.")
+        except Exception as e:
+            log.warning("demo memory seed failed: %s", e)
+    return await _state(p["id"])
+
+
+@app.get("/api/projects")
+async def list_projects(x_visitor_id: Optional[str] = Header(None)):
+    owner = _visitor(x_visitor_id)
+    projects = await store.list_projects(owner)
+    out = []
+    for p in projects:
+        st = await store.full_state(p["id"])
+        out.append({"project": p, "next_decision": services.next_decision(st),
+                    "brief_version": p.get("brief_version"), "last_event": (st["events"][:1] or [None])[0]})
+    return out
+
+
+@app.get("/api/projects/{pid}")
+async def get_project(pid: str):
+    return await _state(pid)
+
+
+@app.get("/api/projects/{pid}/rev")
+async def get_rev(pid: str):
+    p = await store.get_project(pid)
+    if not p:
+        raise HTTPException(404)
+    return {"rev": p.get("rev", 0), "stage": p.get("stage")}
+
+
+@app.post("/api/projects/{pid}/inspiration")
+async def inspiration(
+    pid: str,
+    text: str = Form(""),
+    region: str = Form(""),
+    consent_photo: bool = Form(False),
+    use_demo_photo: bool = Form(False),
+    image_path: str = Form(""),
+    source: str = Form(""),
+    image: Optional[UploadFile] = File(None),
+    video: Optional[UploadFile] = File(None),
+    audio: Optional[UploadFile] = File(None),
+):
+    img, vid = await _media(image, video)
+    voice = await _read(audio)
+
+    async def gen():
+        yield {"type": "progress", "message": "MissionLock intake is reading your inspiration (Gemini, multimodal"
+               + (", video" if vid else "") + ")"}
+        brief = await services.start_from_inspiration(
+            pid, text=text, region=region, image=img, audio=voice, video=vid, image_path=image_path or None,
+            source=source[:40], consent_photo=consent_photo, use_demo_photo=use_demo_photo,
+        )
+        yield {"type": "progress", "message": f"Draft brief v{brief.version} ready - {len(brief.requirements)} requirements to review"}
+        yield {"type": "result", "state": await _state(pid)}
+
+    return _ndjson(gen())
+
+
+class ImagineBody(BaseModel):
+    prompt: str
+
+
+@app.post("/api/projects/{pid}/imagine")
+async def imagine(pid: str, body: ImagineBody, x_visitor_id: Optional[str] = Header(None)):
+    if not store.visitor_image_allowed(_visitor(x_visitor_id)):
+        raise services.ServiceError("You've generated a lot of images this hour - please try again shortly (credit guard).", 429)
+    return {"image_path": await services.imagine(pid, body.prompt)}
+
+
+class SpeakBody(BaseModel):
+    text: str
+
+
+@app.post("/api/tts")
+async def tts(body: SpeakBody):
+    audio, _ = await gemini.speak(body.text[:600])
+    return {"audio": audio}
+
+
+@app.post("/api/projects/{pid}/glance")
+async def glance(
+    pid: str,
+    text: str = Form(""),
+    source: str = Form("smart glasses"),
+    speak: bool = Form(True),
+    image: Optional[UploadFile] = File(None),
+    video: Optional[UploadFile] = File(None),
+    audio: Optional[UploadFile] = File(None),
+):
+    """Hands-free capture (glasses / phone camera): a photo or clip, optionally with a spoken question.
+    Starts the brief if there is none; otherwise MissionLock answers about the capture. Replies are spoken."""
+    img, vid = await _media(image, video)
+    voice = await _read(audio)
+    if not (img or vid or voice or text.strip()):
+        raise services.ServiceError("Capture a photo or clip, or say something.")
+
+    async def gen():
+        state = await store.full_state(pid)
+        if state is None:
+            raise services.ServiceError("Project not found.", 404)
+        reply = ""
+        if not state["briefs"]:
+            yield {"type": "progress", "message": f"New capture from {source} - drafting your brief (Gemini multimodal)"}
+            brief = await services.start_from_inspiration(
+                pid, text=text, image=img, video=vid, audio=voice, consent_photo=True, source=source[:40]
+            )
+            musts = [r.label for r in brief.musts()]
+            reply = f"Got it - I've started a brief for {brief.title.lower()}. "
+            if musts:
+                reply += f"I noted {len(musts)} must-have{'' if len(musts) == 1 else 's'}, like {musts[0].lower()}. "
+            if brief.unknowns:
+                reply += f"One question: {brief.unknowns[0].question}"
+        else:
+            what = ("clip" if vid else "photo") if (img or vid) else "question"
+            yield {"type": "progress", "message": f"Sending your {what} to MissionLock"}
+            media = [m for m in (img, vid) if m]
+            async for ev in concierge.chat(pid, text.strip(), voice, media=media, source=source[:40]):
+                if ev["type"] == "tool":
+                    yield {"type": "tool", "message": ev["message"]}
+                if ev["type"] == "done":
+                    reply = ev.get("reply") or ""
+        audio_url = None
+        if speak and reply:
+            yield {"type": "progress", "message": "Speaking the reply (Gemini TTS)"}
+            try:
+                audio_url, _ = await gemini.speak(reply[:600])
+            except Exception as e:  # speech is a nicety; the text reply stands
+                log.warning("tts failed: %s", e)
+        yield {"type": "result", "reply": reply, "audio": audio_url, "state": await _state(pid)}
+
+    return _ndjson(gen())
+
+
+@app.post("/api/projects/{pid}/brief")
+async def edit_brief(pid: str, patch: services.BriefPatch):
+    await services.edit_brief(pid, patch)
+    return await _state(pid)
+
+
+@app.post("/api/projects/{pid}/brief/confirm")
+async def confirm_brief(pid: str):
+    await services.confirm_brief(pid)
+    return await _state(pid)
+
+
+class AnswerBody(BaseModel):
+    answer: Optional[str] = None
+    dont_know: bool = False
+
+
+@app.post("/api/projects/{pid}/unknowns/{uid}")
+async def answer_unknown(pid: str, uid: str, body: AnswerBody):
+    await services.answer_unknown(pid, uid, body.answer, body.dont_know)
+    return await _state(pid)
+
+
+class ConceptBody(BaseModel):
+    instruction: str = ""
+    parent_id: Optional[str] = None
+    pin_x: Optional[float] = None
+    pin_y: Optional[float] = None
+
+
+@app.post("/api/projects/{pid}/concepts")
+async def concept(pid: str, body: ConceptBody, x_visitor_id: Optional[str] = Header(None)):
+    if not store.visitor_image_allowed(_visitor(x_visitor_id)):
+        raise services.ServiceError("You've generated a lot of concepts this hour - please try again shortly (credit guard).", 429)
+
+    async def gen():
+        yield {"type": "progress", "message": "Studio director (Gemini) is writing the art direction"}
+        pin = (body.pin_x, body.pin_y) if body.pin_x is not None and body.pin_y is not None else None
+        c = await services.generate_concept(pid, instruction=body.instruction, parent_id=body.parent_id, pin=pin)
+        yield {"type": "progress", "message": f"Rendered concept '{c['caption']}' (Gemini image) - labelled as a concept, not an offer"}
+        yield {"type": "result", "state": await _state(pid)}
+
+    return _ndjson(gen())
+
+
+@app.post("/api/projects/{pid}/concepts/{cid}/select")
+async def select_concept(pid: str, cid: str):
+    await services.select_concept(pid, cid)
+    return await _state(pid)
+
+
+@app.post("/api/projects/{pid}/routes/explore")
+async def explore(pid: str):
+    async def gen():
+        async for ev in services.explore_routes(pid):
+            if ev["type"] == "result":
+                yield {"type": "result", "state": await _state(pid)}
+            else:
+                yield ev
+
+    return _ndjson(gen())
+
+
+class RequestBody(BaseModel):
+    seller_ids: list[str] = ["kaveri"]
+    include_concept: bool = True
+    include_photo: bool = False
+    share_budget: bool = True
+
+
+@app.post("/api/projects/{pid}/requests")
+async def draft_request(pid: str, body: RequestBody):
+    await services.draft_request(pid, seller_ids=body.seller_ids, include_concept=body.include_concept,
+                                 include_photo=body.include_photo, share_budget=body.share_budget)
+    return await _state(pid)
+
+
+@app.post("/api/projects/{pid}/requests/{rid}/send")
+async def send_request(pid: str, rid: str):
+    async def gen():
+        async for ev in services.send_request(pid, rid):
+            if ev["type"] == "result":
+                yield {"type": "result", "state": await _state(pid)}
+            else:
+                yield ev
+
+    return _ndjson(gen())
+
+
+class DecisionBody(BaseModel):
+    deviation_id: str
+    decision: str  # keep_original | accept
+
+
+@app.post("/api/projects/{pid}/quotes/{qid}/decision")
+async def decision(pid: str, qid: str, body: DecisionBody):
+    async def gen():
+        async for ev in services.decide(pid, qid, body.deviation_id, body.decision):
+            if ev["type"] == "result":
+                yield {"type": "result", "state": await _state(pid)}
+            else:
+                yield ev
+
+    return _ndjson(gen())
+
+
+class ApproveBody(BaseModel):
+    quote_id: str
+    idempotency_key: str
+    acknowledgements: list[str] = []
+
+
+@app.post("/api/projects/{pid}/approve")
+async def approve(pid: str, body: ApproveBody):
+    await services.approve(pid, body.quote_id, body.idempotency_key, body.acknowledgements)
+    return await _state(pid)
+
+
+class AdvanceBody(BaseModel):
+    sample_decision: Optional[str] = None
+
+
+@app.post("/api/projects/{pid}/order/advance")
+async def advance(pid: str, body: AdvanceBody):
+    await services.advance_order(pid, body.sample_decision)
+    return await _state(pid)
+
+
+@app.post("/api/projects/{pid}/delivery-check")
+async def delivery_check(pid: str, use_sample: bool = Form(False), photo: Optional[UploadFile] = File(None)):
+    async def gen():
+        yield {"type": "progress", "message": "Delivery inspector (Gemini vision) is comparing the photo with your approved checks"}
+        await services.delivery_check(pid, await _read(photo), use_sample=use_sample)
+        yield {"type": "result", "state": await _state(pid)}
+
+    return _ndjson(gen())
+
+
+class CloseBody(BaseModel):
+    outcome: str  # accept | issue
+    note: str = ""
+
+
+@app.post("/api/projects/{pid}/delivery-close")
+async def delivery_close(pid: str, body: CloseBody):
+    await services.close_delivery(pid, body.outcome, body.note)
+    return await _state(pid)
+
+
+@app.get("/api/projects/{pid}/recap")
+async def recap(pid: str, speak: bool = False):
+    return await services.recap(pid, speak=speak)
+
+
+@app.post("/api/projects/{pid}/chat")
+async def chat(
+    pid: str,
+    text: str = Form(""),
+    audio: Optional[UploadFile] = File(None),
+    image: Optional[UploadFile] = File(None),
+    video: Optional[UploadFile] = File(None),
+):
+    a = await _read(audio)
+    img, vid = await _media(image, video)
+    if not text.strip() and not a and not img and not vid:
+        raise services.ServiceError("Say or type something.")
+    return _ndjson(concierge.chat(pid, text.strip(), a, media=[m for m in (img, vid) if m]))
+
+
+@app.get("/api/projects/{pid}/chat")
+async def chat_history(pid: str):
+    return await concierge.history(pid)
+
+
+# ---- Seller workspace (demo makers) ----------------------------------------------------------
+
+
+@app.get("/api/seller/{seller_id}/inbox")
+async def seller_inbox(seller_id: str):
+    if seller_id not in catalog.SELLERS:
+        raise HTTPException(404)
+    q = store.db().collection_group("requests")
+    items = []
+    async for snap in q.stream():
+        d = snap.to_dict()
+        if seller_id in d.get("seller_ids", []) and d.get("status") != "draft":
+            pid = snap.reference.parent.parent.id
+            quotes = [x.model_dump() for x in await store.list_quotes(pid) if x.request_id == d["id"] and x.seller_id == seller_id]
+            items.append({"project_id": pid, "request": d, "quotes": quotes})
+    items.sort(key=lambda i: i["request"].get("sent_at", ""), reverse=True)
+    return {"seller": catalog.SELLERS[seller_id], "items": items[:30]}
+
+
+# ---- Media ------------------------------------------------------------------------------------
+
+
+@app.get("/api/media/{path:path}")
+async def media(path: str):
+    if not path.startswith(("catalog/", "projects/", "demo/")) or ".." in path:
+        raise HTTPException(404)
+    try:
+        data, ctype = await store.download_media(path)
+    except Exception:
+        raise HTTPException(404)
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=86400, immutable"})
+
+
+# ---- Web app (built React SPA) ---------------------------------------------------------------
+
+if os.path.isdir(config.STATIC_DIR):
+    app.mount("/assets", StaticFiles(directory=os.path.join(config.STATIC_DIR, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def spa(full_path: str):
+        candidate = os.path.join(config.STATIC_DIR, full_path)
+        if full_path and os.path.isfile(candidate) and ".." not in full_path:
+            return FileResponse(candidate)
+        return FileResponse(os.path.join(config.STATIC_DIR, "index.html"), headers={"Cache-Control": "no-cache"})
