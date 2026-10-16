@@ -39,6 +39,14 @@ let pos = { x: W / 2, y: H / 2 };
 
 async function moveTo(locator) {
   await locator.scrollIntoViewIfNeeded().catch(() => {});
+  // Keep targets clear of the floating chat dock and the top bar.
+  const moved = await locator.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.top >= 70 && r.bottom <= innerHeight - 150) return false;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    return true;
+  }).catch(() => false);
+  if (moved) await page.waitForTimeout(700);
   const b = await locator.boundingBox();
   if (!b) return null;
   const x = b.x + b.width / 2, y = b.y + b.height / 2;
@@ -160,7 +168,9 @@ try {
   // ---- 7. Resolution ----
   mark("resolution");
   await click(page.locator(".decision .btn.primary").first());
-  await agentWait("maker-round-2", () => page.getByText(/round 2/).first().waitFor({ timeout: 240000 }));
+  // Scoped to the quote card: the status island also mentions "round 2" while the maker works.
+  await agentWait("maker-round-2", () => page.locator(".ws-center").getByText(/response · round 2/).first().waitFor({ timeout: 240000 }));
+  await page.waitForFunction(() => !document.querySelector(".island.busy"), null, { timeout: 120000 }).catch(() => {});
   await hold(2.5);
   const amber = page.locator(".decision.amber .dbody .btn:not(.primary)").first();
   if (await amber.isVisible().catch(() => false)) {
@@ -176,13 +186,14 @@ try {
   await page.keyboard.press("Escape").catch(() => {});
   await page.mouse.click(30, H - 30);
   await hold(0.5);
-  await page.goto(`${base}/m/${pid}`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/m/${pid}`, { waitUntil: "domcontentloaded" });
   await page.getByText(/Where you left off/).waitFor();
   await agentWait("recap", () => page.waitForFunction(() => !document.body.innerText.includes("Preparing recap"), null, { timeout: 60000 }));
   await hold(5);
 
   // ---- 9. Approval ----
-  await page.goto(`${base}/p/${pid}/approve`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/p/${pid}/approve`, { waitUntil: "domcontentloaded" });
+  await page.getByText(/Review the exact commitment/).waitFor({ timeout: 60000 });
   mark("approve");
   await hold(2);
   await smoothScroll(center, 500, 1600); await hold(1.5);
@@ -219,10 +230,10 @@ try {
 
   // ---- Evidence trace ----
   mark("trace");
-  await click(page.getByRole("button", { name: /Evidence & agent trace/ }), 4.5);
+  await click(page.getByRole("tab", { name: /Evidence & agent trace/ }), 4.5);
 
   // ---- Glasses ----
-  await page.goto(`${base}/g/${pid}`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/g/${pid}`, { waitUntil: "domcontentloaded" });
   mark("glasses");
   await hold(3);
   await click(page.getByRole("button", { name: /Capture photo/ }));
@@ -230,7 +241,8 @@ try {
   await hold(7);
 
   // ---- Outro on home ----
-  await page.goto(base, { waitUntil: "networkidle" });
+  await page.goto(base, { waitUntil: "domcontentloaded" });
+  await hold(1);
   mark("outro");
   await page.mouse.move(W * 0.75, H * 0.4, { steps: 40 });
   await hold(6);

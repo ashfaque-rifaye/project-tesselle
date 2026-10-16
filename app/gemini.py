@@ -44,8 +44,10 @@ def client() -> genai.Client:
         location=config.GEMINI_LOCATION,
         credentials=identity.credentials(),
         http_options=types.HttpOptions(
+            # A request that sits in a capacity queue for minutes is worse than a fast, retried failure.
+            timeout=90_000,
             retry_options=types.HttpRetryOptions(
-                attempts=4, initial_delay=2.0, max_delay=20.0, http_status_codes=[429, 500, 503]
+                attempts=4, initial_delay=2.0, max_delay=20.0, http_status_codes=[429, 500, 503, 504]
             )
         ),
     )

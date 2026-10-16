@@ -32,11 +32,16 @@ def _setup_cloud_trace() -> None:
         return
     try:
         import google.auth
-        from google.adk.telemetry.google_cloud import get_gcp_exporters
+        from google.adk.telemetry.google_cloud import get_gcp_exporters, get_gcp_resource
         from google.adk.telemetry.setup import maybe_set_otel_providers
+        from opentelemetry.sdk.resources import Resource
 
         creds = identity.credentials() or google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])[0]
-        maybe_set_otel_providers([get_gcp_exporters(enable_cloud_tracing=True, google_auth=(creds, config.PROJECT))])
+        # Cloud Trace's OTLP endpoint rejects spans whose resource lacks gcp.project_id.
+        resource = get_gcp_resource(config.PROJECT).merge(Resource.create({"service.name": "tesselle", "gcp.project_id": config.PROJECT}))
+        maybe_set_otel_providers(
+            [get_gcp_exporters(enable_cloud_tracing=True, google_auth=(creds, config.PROJECT))], otel_resource=resource
+        )
         log.info("Cloud Trace export enabled for project %s", config.PROJECT)
     except Exception as e:  # telemetry must never block serving
         log.warning("Cloud Trace setup skipped: %s", e)

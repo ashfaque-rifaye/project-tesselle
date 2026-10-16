@@ -11,7 +11,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -24,6 +26,7 @@ from ..models import Brief, Specs
 from .runtime import run_specialist
 from .specialists import RouteNarrative, route_analyst
 
+log = logging.getLogger(__name__)
 
 def _brief_query(brief: Brief) -> str:
     reqs = "; ".join(r.label for r in brief.requirements)
@@ -133,15 +136,40 @@ async def analyst(node_input: dict, brief: dict) -> dict[str, Any]:
         }
         for e in entries
     ]
-    narrative, stats = await run_specialist(
-        route_analyst,
-        [
-            "Confirmed brief:\n" + json.dumps(brief, ensure_ascii=False),
-            "Sources checked: " + "; ".join(sources),
-            "Guard verdicts per option:\n" + json.dumps(compact, ensure_ascii=False),
-        ],
+    try:
+        narrative, stats = await asyncio.wait_for(
+            run_specialist(
+                route_analyst,
+                [
+                    "Confirmed brief:\n" + json.dumps(brief, ensure_ascii=False),
+                    "Sources checked: " + "; ".join(sources),
+                    "Guard verdicts per option:\n" + json.dumps(compact, ensure_ascii=False),
+                ],
+            ),
+            timeout=75,
+        )
+        narrative = RouteNarrative.model_validate(narrative).model_dump()
+    except Exception as e:  # The verdicts are already decided in code; only the explanation is lost.
+        log.warning("route analyst unavailable (%s); using the deterministic summary", e)
+        narrative = _fallback_narrative(entries, brief)
+        stats = {"agent": "route_analyst", "model": "deterministic fallback", "purpose": "route_analyst", "latency_ms": 0}
+    return {"entries": entries, "sources": sources, "narrative": narrative, "stats": stats}
+
+
+def _fallback_narrative(entries: list[dict[str, Any]], brief: dict) -> dict[str, Any]:
+    """A plain, honest summary of the guard's verdicts when the explanation agent can't answer."""
+    count = {v: sum(1 for e in entries if e["verdict"] == v) for v in ("meets", "possible_with_change", "not_suitable", "needs_quote")}
+    if count["meets"]:
+        headline = f"{count['meets']} option{'s' if count['meets'] > 1 else ''} meet every confirmed requirement."
+    else:
+        headline = "No suitable match found in the sources checked."
+    explanation = (
+        f"MissionLock checked {len(entries)} options against brief v{brief.get('version', '?')}: {count['meets']} meet it, "
+        f"{count['possible_with_change']} would need a change you'd have to approve, {count['not_suitable']} break a must-have, "
+        f"and {count['needs_quote']} makers can quote. The route analyst was busy, so this summary comes straight from the guard's verdicts."
     )
-    return {"entries": entries, "sources": sources, "narrative": RouteNarrative.model_validate(narrative).model_dump(), "stats": stats}
+    steps = ["Request a quote from a participating maker", "Relax a flexible preference and re-check", "Pause and come back later - the brief is saved"]
+    return RouteNarrative(headline=headline, explanation=explanation, item_notes=[], next_steps=steps).model_dump()
 
 
 join_routes = JoinNode(name="join_routes")
