@@ -36,3 +36,6 @@ tools/video/node_modules/
 tools/logs/
 firebase-debug.log
 .firebase/
+
+# Large submission media (upload separately)
+submission/*.mp4

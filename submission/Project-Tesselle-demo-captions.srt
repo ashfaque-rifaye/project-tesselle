@@ -1,0 +1,64 @@
+1
+00:00:00,300 --> 00:00:07,311
+Most shopping helps you buy what exists. Project Tesselle helps you get what you actually need.
+
+2
+00:00:08,050 --> 00:00:14,981
+It's a personal commerce agent built on Gemini, Google's Agent Development Kit, and Google Cloud.
+
+3
+00:00:15,716 --> 00:00:25,367
+1 · Inspiration - I start with a photo of my desk and a few words: the shelf leaves eighteen centimetres, I rent, so no drilling, about three thousand rupees.
+
+4
+00:00:26,683 --> 00:00:34,734
+2 · Intent - Gemini drafts a brief. MissionLock separates what must stay the same from what is flexible, and I confirm it.
+
+5
+00:00:38,350 --> 00:00:48,041
+3 · Concept - The studio renders a concept, clearly labelled as an illustration. I pin an area and refine it, and the brief never changes silently.
+
+6
+00:00:53,050 --> 00:01:05,181
+4 · Existing stock - An ADK graph workflow checks every route in parallel, with vector search over Gemini embeddings. This gorgeous bamboo station is rejected: twenty-two centimetres deep.
+
+7
+00:01:05,950 --> 00:01:14,601
+5 · Maker request - So I ask a maker. I see exactly what they will receive. No name, no address, no photos of my home.
+
+8
+00:01:18,950 --> 00:01:24,961
+6 · Counteroffer - The maker proposes its standard twenty-centimetre jig. MissionLock blocks it.
+
+9
+00:01:25,650 --> 00:01:35,621
+7 · Resolution - I keep eighteen. The maker returns a revised layout that fits. The small price rise is a flexible decision, and it is mine.
+
+10
+00:01:37,516 --> 00:01:43,847
+8 · Device handoff - I can continue on my phone. The same decision follows me, with a spoken recap.
+
+11
+00:01:53,516 --> 00:02:02,687
+9 · Approval - Approval is precise: one specification, one quote, one brief version. It is a sandbox order, so nothing is bought.
+
+12
+00:02:03,450 --> 00:02:08,141
+Milestones and sample evidence stay tied to the approved brief.
+
+13
+00:02:13,550 --> 00:02:21,801
+10 · Aftercare - After delivery, Gemini vision checks the photo against the checks I approved, and tells me what a photo cannot prove.
+
+14
+00:02:27,950 --> 00:02:33,161
+Every agent step is on the record, with model, latency and tokens.
+
+15
+00:02:33,883 --> 00:02:42,014
+Glasses capture - And capture can start anywhere, even from smart glasses. Snap it, ask, and Tesselle answers out loud.
+
+16
+00:02:46,716 --> 00:02:52,087
+Project Tesselle. Imagine it. Keep what matters. Get it made.
+
