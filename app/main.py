@@ -6,6 +6,7 @@ Long-running agent work streams NDJSON progress lines ({"type": "progress" | "to
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -18,11 +19,30 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import catalog, config, gemini, services, store
+from . import catalog, config, gemini, identity, services, store
 from .agents import concierge
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("tesselle")
+
+
+def _setup_cloud_trace() -> None:
+    """Export ADK agent / Gemini spans (with token usage) to Cloud Trace via ADK's OpenTelemetry hooks."""
+    if os.environ.get("TESSELLE_CLOUD_TRACE") != "1":
+        return
+    try:
+        import google.auth
+        from google.adk.telemetry.google_cloud import get_gcp_exporters
+        from google.adk.telemetry.setup import maybe_set_otel_providers
+
+        creds = identity.credentials() or google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])[0]
+        maybe_set_otel_providers([get_gcp_exporters(enable_cloud_tracing=True, google_auth=(creds, config.PROJECT))])
+        log.info("Cloud Trace export enabled for project %s", config.PROJECT)
+    except Exception as e:  # telemetry must never block serving
+        log.warning("Cloud Trace setup skipped: %s", e)
+
+
+_setup_cloud_trace()
 
 app = FastAPI(title="Project Tesselle", version="2.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -55,23 +75,45 @@ async def budget_error(_: Request, exc: gemini.BudgetExceeded):
 
 
 def _ndjson(gen: AsyncIterator[dict[str, Any]]) -> StreamingResponse:
+    """Stream agent progress as NDJSON, with a heartbeat every 5 s so long Gemini calls never leave a
+    silent connection for proxies or browsers to drop."""
+
+    def line(ev: dict[str, Any]) -> str:
+        return json.dumps(ev, ensure_ascii=False, default=str) + "\n"
+
     async def body():
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def pump() -> None:
+            try:
+                async for ev in gen:
+                    await queue.put(("ev", ev))
+            except services.ServiceError as e:
+                await queue.put(("ev", {"type": "error", "message": str(e), "details": e.details}))
+            except gemini.BudgetExceeded as e:
+                await queue.put(("ev", {"type": "error", "message": str(e)}))
+            except Exception as e:  # never leave the UI hanging on a broken stream
+                log.exception("stream failed")
+                await queue.put(("ev", {"type": "error", "message": f"Something went wrong: {type(e).__name__}. Nothing was sent or committed."}))
+            finally:
+                await queue.put(("done", None))
+
+        task = asyncio.create_task(pump())
         try:
-            async for ev in gen:
-                yield json.dumps(ev, ensure_ascii=False, default=str) + "\n"
-        except services.ServiceError as e:
-            yield json.dumps({"type": "error", "message": str(e), "details": e.details}) + "\n"
-        except gemini.BudgetExceeded as e:
-            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
-        except Exception as e:  # never leave the UI hanging on a broken stream
-            log.exception("stream failed")
-            yield json.dumps({"type": "error", "message": f"Something went wrong: {type(e).__name__}. Nothing was sent or committed."}) + "\n"
+            while True:
+                try:
+                    kind, ev = await asyncio.wait_for(queue.get(), timeout=5)
+                except asyncio.TimeoutError:
+                    yield line({"type": "heartbeat"})
+                    continue
+                if kind == "done":
+                    break
+                yield line(ev)
+        finally:
+            if not task.done():
+                task.cancel()
 
     return StreamingResponse(body(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no", "Cache-Control": "no-store"})
-
-
-_EXT_MIME = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".jpg": "image/jpeg",
-             ".jpeg": "image/jpeg", ".png": "image/png", ".heic": "image/heic", ".webp": "image/webp"}
 
 
 async def _read(upload: Optional[UploadFile], limit: int = MAX_UPLOAD) -> Optional[tuple[bytes, str]]:

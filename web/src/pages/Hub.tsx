@@ -113,6 +113,27 @@ export default function Hub() {
       </section>
 
       <section className="home-section">
+        <div className="lock-demo">
+          <div className="holo reveal">
+            <img src="/media/glasses-life.jpg" alt="A shopper wearing smart glasses scanning a bamboo desk organiser" />
+            <span className="tag chip violet">Illustration · generated with Canva AI</span>
+          </div>
+          <div className="section reveal">
+            <div className="eyebrow">Glasses mode</div>
+            <h2>Glance. Ask. <span className="grad-text">Hear it back.</span></h2>
+            <p className="muted" style={{ fontSize: 16, lineHeight: 1.6, maxWidth: 520 }}>
+              Spot something in a shop? Capture it with your glasses or phone and ask "something like this, but no deeper than 18 cm?".
+              Gemini looks, MissionLock checks it against your brief, and the answer is spoken back - while sizes it can't see stay "Needs checking".
+            </p>
+            <div className="row wrap">
+              <button className="btn primary" onClick={() => create(false, "From your glasses", "glasses")} disabled={!!creating}><Glasses size={16} /> Open glasses mode</button>
+              <span className="chip">Ray-Ban Meta → Share → Tesselle</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="home-section">
         <div className="reveal"><div className="eyebrow">02 · One journey, one brief</div></div>
         <h2 className="reveal">From spark to doorstep without losing <span className="grad-text">the requirements that mattered.</span></h2>
         <div className="journey reveal">

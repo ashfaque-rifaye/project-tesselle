@@ -60,14 +60,32 @@ export function useProject(pid: string | undefined) {
       setBusy(label);
       setLines([]);
       localAction.current = true;
+      const revBefore = rev.current;
+      const recover = async () => {
+        // The server saves every step, so a dropped connection is recovered from the saved project state.
+        const fresh = pid ? await get<ProjectState>(`/api/projects/${pid}`).catch(() => null) : null;
+        if (fresh && fresh.project.rev !== revBefore) {
+          apply(fresh);
+          return fresh;
+        }
+        return null;
+      };
       try {
-        const s = await fn((e) => {
+        let s = await fn((e) => {
           if ((e.type === "progress" || e.type === "tool") && e.message) setLines((l) => [...l, e.message!]);
         });
+        if (!s) s = await recover();
         apply(s);
         if (success) toast(success);
         return s;
       } catch (e) {
+        if (!(e instanceof ApiError)) {
+          const fresh = await recover();
+          if (fresh) {
+            if (success) toast(success);
+            return fresh;
+          }
+        }
         const err = e as ApiError;
         const msg = err.details?.length ? `${err.message} ${err.details.join(" ")}` : err.message;
         toast(msg, true);
@@ -78,7 +96,7 @@ export function useProject(pid: string | undefined) {
         setBusy(null);
       }
     },
-    [apply, load, toast],
+    [apply, load, toast, pid],
   );
 
   const act = useCallback(
