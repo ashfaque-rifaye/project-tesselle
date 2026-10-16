@@ -8,13 +8,13 @@ export function HandoffModal({ state, onClose }: { state: ProjectState; onClose:
   const url = `${window.location.origin}/m/${state.project.id}`;
   const [qr, setQr] = useState("");
   useEffect(() => {
-    QRCode.toDataURL(url, { margin: 1, width: 260, color: { dark: "#1C2430", light: "#FFFFFF" } }).then(setQr);
+    QRCode.toDataURL(url, { margin: 1, width: 260, color: { dark: "#0B1618", light: "#EEF5F2" } }).then(setQr);
   }, [url]);
   return (
     <Modal onClose={onClose}>
       <div className="row"><Smartphone size={20} /><h2 style={{ fontSize: 22 }}>Continue on your phone</h2></div>
       <div className="small muted">Scan to open this exact project at the pending decision: <b>{state.next_decision.title}</b>. No repeated brief, no duplicate orders.</div>
-      <div className="row" style={{ justifyContent: "center" }}>{qr && <img src={qr} alt="QR code to open this project on a phone" style={{ width: 220 }} />}</div>
+      <div className="row" style={{ justifyContent: "center" }}>{qr && <img src={qr} alt="QR code to open this project on a phone" style={{ width: 220, borderRadius: 24, padding: 10, background: "#EEF5F2" }} />}</div>
       <div className="row">
         <input className="input mono" readOnly value={url} />
         <button className="btn" onClick={() => navigator.clipboard.writeText(url)}><Copy size={14} /> Copy</button>

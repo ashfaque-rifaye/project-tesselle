@@ -20,7 +20,7 @@ await ctx.addInitScript(() => {
     if (document.getElementById("__cursor")) return;
     const c = document.createElement("div");
     c.id = "__cursor";
-    Object.assign(c.style, { position: "fixed", left: "0px", top: "0px", width: "22px", height: "22px", borderRadius: "50%", border: "2px solid #2ef2d0", background: "rgba(46,242,208,.18)", boxShadow: "0 0 14px rgba(46,242,208,.8)", zIndex: 2147483647, pointerEvents: "none", transform: "translate(-50%,-50%)", transition: "width .12s, height .12s" });
+    Object.assign(c.style, { position: "fixed", left: "0px", top: "0px", width: "22px", height: "22px", borderRadius: "50%", border: "2px solid #d7ff3c", background: "rgba(215,255,60,.18)", boxShadow: "0 0 14px rgba(215,255,60,.75)", zIndex: 2147483647, pointerEvents: "none", transform: "translate(-50%,-50%)", transition: "width .12s, height .12s" });
     document.documentElement.appendChild(c);
     document.addEventListener("mousemove", (e) => { c.style.left = e.clientX + "px"; c.style.top = e.clientY + "px"; }, true);
     document.addEventListener("mousedown", () => { c.style.width = "34px"; c.style.height = "34px"; }, true);
@@ -82,8 +82,10 @@ try {
   // ---- Home ----
   await page.goto(base, { waitUntil: "networkidle" });
   mark("home");
-  await page.mouse.move(W * 0.7, H * 0.45, { steps: 30 });
-  await hold(4.5);
+  await page.mouse.move(W * 0.45, H * 0.6, { steps: 30 });
+  await hold(3.5);
+  await page.mouse.move(W * 0.62, H * 0.42, { steps: 40 });
+  await hold(3);
   await smoothScroll(null, 900, 2200); await hold(2.5);
   await smoothScroll(null, 0, 1500); await hold(0.8);
 

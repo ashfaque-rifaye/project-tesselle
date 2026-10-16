@@ -92,7 +92,7 @@ export default function Clarify({ ctx }: { ctx: StageCtx }) {
         {r.note && <div className="tiny muted">"{r.note}"</div>}
       </div>
       <div className="col" style={{ gap: 6, alignItems: "flex-end" }}>
-        <select className="select input sm" style={{ width: 150 }} value={r.kind} onChange={(e) => updateReq(r.id, { kind: e.target.value as "must" | "flexible" })} aria-label="Kind">
+        <select className="select input sm" style={{ width: 178 }} value={r.kind} onChange={(e) => updateReq(r.id, { kind: e.target.value as "must" | "flexible" })} aria-label="Kind">
           <option value="must">Must stay the same</option>
           <option value="flexible">Flexible</option>
         </select>

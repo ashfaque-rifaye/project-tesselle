@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Activity, ChevronDown, ChevronUp, Loader2, MessageSquare, Mic, Send, Square, Wrench } from "lucide-react";
+import { Activity, ChevronDown, Loader2, MessageSquare, Mic, Send, Square, Wrench } from "lucide-react";
 import { ago, get, stream } from "../api";
 import type { ProjectState } from "../types";
 import { actorLabel } from "./ui";
 
 type Msg = { role: "customer" | "missionlock" | "tool"; text: string };
 
+/** Floating dock: a capsule composer to talk to MissionLock, with a glass sheet that rises for the
+ *  conversation or the evidence trace of every agent step. */
 export default function BottomPanel({ state, onState }: { state: ProjectState; onState: (s: ProjectState) => void }) {
   const [tab, setTab] = useState<"chat" | "trace">("chat");
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,10 +24,18 @@ export default function BottomPanel({ state, onState }: { state: ProjectState; o
   }, [pid]);
   useEffect(() => {
     logRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
-  }, [msgs, tab]);
+  }, [msgs, tab, open]);
+
+  function show(t: "chat" | "trace") {
+    if (open && tab === t) return setOpen(false);
+    setTab(t);
+    setOpen(true);
+  }
 
   async function send(body: FormData, shown: string) {
     setBusy(true);
+    setTab("chat");
+    setOpen(true);
     setMsgs((m) => [...m, { role: "customer", text: shown }]);
     let reply = "";
     try {
@@ -82,72 +92,76 @@ export default function BottomPanel({ state, onState }: { state: ProjectState; o
   }
 
   return (
-    <div>
-      <div className="bottom-tabs">
-        <button className={`tab ${tab === "chat" ? "active" : ""}`} onClick={() => { setTab("chat"); setOpen(true); }}>
-          <MessageSquare /> MissionLock
-        </button>
-        <button className={`tab ${tab === "trace" ? "active" : ""}`} onClick={() => { setTab("trace"); setOpen(true); }}>
-          <Activity /> Evidence & agent trace
-          <span className="chip muted" style={{ height: 20 }}>{state.events.length}</span>
-        </button>
-        <div className="grow" />
-        <span className="tiny muted hidden-sm">Gemini on Vertex AI · ADK · Agent Platform Sessions + Memory Bank</span>
-        <button className="btn ghost sm icon-btn" onClick={() => setOpen(!open)} aria-label={open ? "Collapse panel" : "Expand panel"}>
-          {open ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-        </button>
-      </div>
-      <div className={`bottom-body ${open ? "" : "collapsed"}`}>
-        {tab === "chat" ? (
-          <div className="chat">
-            <div className="chat-log" ref={logRef}>
-              {msgs.length === 0 && (
-                <div className="small muted">
-                  Talk to MissionLock - e.g. "my shelf actually leaves 17 cm", "make the pen cup shorter", or "what's still unknown?".
-                  It can update your brief and concepts, but never sends requests or approves spending for you.
-                </div>
-              )}
-              {msgs.map((m, i) =>
-                m.role === "tool" ? (
-                  <div key={i} className="msg tool"><Wrench size={12} /> {m.text}</div>
-                ) : (
-                  <div key={i} className={`msg ${m.role}`}>{m.text}</div>
-                ),
-              )}
-              {busy && <div className="msg tool"><Loader2 size={12} className="spin" /> MissionLock is thinking...</div>}
-            </div>
-            <div className="chat-input">
-              <button className={`btn icon-btn ${recording ? "rec" : ""}`} onClick={toggleVoice} disabled={busy} aria-label={recording ? "Stop recording" : "Speak"}>
-                {recording ? <Square size={15} /> : <Mic size={16} />}
-              </button>
-              <input className="input" placeholder={recording ? "Listening... press stop when done" : "Ask or tell MissionLock..."} value={text}
-                onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendText()} disabled={busy || recording} />
-              <button className="btn primary icon-btn" onClick={sendText} disabled={busy || !text.trim()} aria-label="Send"><Send size={15} /></button>
-            </div>
+    <div className="dock">
+      {open && (
+        <div className="sheet glass" role="region" aria-label={tab === "chat" ? "MissionLock conversation" : "Evidence and agent trace"}>
+          <div className="sheet-head">
+            <h4>{tab === "chat" ? "MissionLock · one session across your devices" : "Evidence & agent trace"}</h4>
+            <div className="grow" />
+            <span className="tiny muted hidden-sm">Gemini on Vertex AI · ADK · Agent Platform Sessions + Memory Bank</span>
+            <button className="btn ghost sm icon-btn" onClick={() => setOpen(false)} aria-label="Close panel"><ChevronDown size={16} /></button>
           </div>
-        ) : (
-          <div className="trace">
-            {state.events.map((e) => {
-              const a = actorLabel(e.actor);
-              return (
-                <div key={e.id} className="trace-row">
-                  <div className="when">{ago(e.ts)}</div>
-                  <div className="who"><span className={`chip ${a.tone}`}>{a.name}</span></div>
-                  <div>
-                    <div>{e.summary}</div>
-                    {e.detail && <div className="tiny muted">{e.detail}</div>}
-                    {e.stats?.map((s, i) => (
-                      <span key={i} className="stat-pill">
-                        {s.agent || s.purpose} · {s.model} · {((s.latency_ms || 0) / 1000).toFixed(1)}s
-                        {s.prompt_tokens ? ` · in ${s.prompt_tokens}` : ""}{s.output_tokens ? ` · out ${s.output_tokens}` : ""}{s.thought_tokens ? ` · think ${s.thought_tokens}` : ""}
-                      </span>
-                    ))}
+          {tab === "chat" ? (
+            <div className="chat">
+              <div className="chat-log" ref={logRef}>
+                {msgs.length === 0 && (
+                  <div className="small muted">
+                    Talk to MissionLock - e.g. "my shelf actually leaves 17 cm", "make the pen cup shorter", or "what's still unknown?".
+                    It can update your brief and concepts, but never sends requests or approves spending for you.
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                )}
+                {msgs.map((m, i) =>
+                  m.role === "tool" ? (
+                    <div key={i} className="msg tool"><Wrench size={12} /> {m.text}</div>
+                  ) : (
+                    <div key={i} className={`msg ${m.role}`}>{m.text}</div>
+                  ),
+                )}
+                {busy && <div className="msg tool"><Loader2 size={12} className="spin" /> MissionLock is thinking...</div>}
+              </div>
+            </div>
+          ) : (
+            <div className="trace" ref={logRef}>
+              {state.events.map((e) => {
+                const a = actorLabel(e.actor);
+                return (
+                  <div key={e.id} className="trace-row">
+                    <div className="when">{ago(e.ts)}</div>
+                    <div className="who"><span className={`chip ${a.tone}`}>{a.name}</span></div>
+                    <div>
+                      <div>{e.summary}</div>
+                      {e.detail && <div className="tiny muted">{e.detail}</div>}
+                      {e.stats?.map((s, i) => (
+                        <span key={i} className="stat-pill">
+                          {s.agent || s.purpose} · {s.model} · {((s.latency_ms || 0) / 1000).toFixed(1)}s
+                          {s.prompt_tokens ? ` · in ${s.prompt_tokens}` : ""}{s.output_tokens ? ` · out ${s.output_tokens}` : ""}{s.thought_tokens ? ` · think ${s.thought_tokens}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="composer glass ai">
+        <div className="seg" role="tablist">
+          <button className={open && tab === "chat" ? "on" : ""} onClick={() => show("chat")} role="tab" aria-selected={open && tab === "chat"}>
+            <MessageSquare /> <span className="lbl">MissionLock</span>
+          </button>
+          <button className={open && tab === "trace" ? "on" : ""} onClick={() => show("trace")} role="tab" aria-selected={open && tab === "trace"}>
+            <Activity /> <span className="lbl">Evidence & agent trace</span> <span className="count">{state.events.length}</span>
+          </button>
+        </div>
+        <button className={`btn icon-btn ${recording ? "rec" : ""}`} onClick={toggleVoice} disabled={busy} aria-label={recording ? "Stop recording" : "Speak"}>
+          {recording ? <Square size={15} /> : <Mic size={16} />}
+        </button>
+        <input className="input" placeholder={recording ? "Listening... press stop when done" : "Ask or tell MissionLock..."} value={text}
+          onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendText()} disabled={busy || recording}
+          onFocus={() => { if (msgs.length) { setTab("chat"); setOpen(true); } }} aria-label="Message MissionLock" />
+        <button className="btn primary icon-btn" onClick={sendText} disabled={busy || !text.trim()} aria-label="Send"><Send size={15} /></button>
       </div>
     </div>
   );

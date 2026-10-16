@@ -97,7 +97,7 @@ export default function CameraCapture({ onClose, onCapture }: { onClose: () => v
   return (
     <Modal onClose={onClose} wide>
       <div className="row between">
-        <h2 style={{ fontSize: 22 }}><Camera size={20} style={{ verticalAlign: -3 }} /> Capture</h2>
+        <h2 style={{ fontSize: 26 }}>Capture</h2>
         <button className="btn ghost sm icon-btn" onClick={onClose} aria-label="Close camera"><X size={16} /></button>
       </div>
       {error ? (

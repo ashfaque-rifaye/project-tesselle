@@ -27,13 +27,14 @@ export default function Seller() {
 
   return (
     <>
-      <header className="topbar"><Logo small /><span className="sep" /><span className="project-name">Seller workspace</span><div className="grow" />
-        <a className="btn sm ghost" href="/seller/kaveri">Kaveri Woodcraft</a><a className="btn sm ghost" href="/seller/loom">Loom & Ledger</a></header>
+      <header className="top-float glass"><Logo small /><span className="chip muted">Seller workspace</span><div className="grow" />
+        <a className={`btn sm ${sellerId === "kaveri" ? "light" : "ghost"}`} href="/seller/kaveri">Kaveri Woodcraft</a>
+        <a className={`btn sm ${sellerId === "loom" ? "light" : "ghost"}`} href="/seller/loom">Loom & Ledger</a></header>
       <div className="seller-wrap">
         {!data ? <div className="empty"><Loader2 className="spin" /></div> : (
           <>
             <div>
-              <h2>{data.seller.name}</h2>
+              <h2 style={{ fontSize: 44 }}>{data.seller.name}</h2>
               <div className="row wrap" style={{ marginTop: 6 }}><span className="chip violet">{data.seller.label}</span></div>
               <p className="small muted" style={{ marginTop: 8, maxWidth: 760 }}>{data.seller.capabilities}</p>
             </div>

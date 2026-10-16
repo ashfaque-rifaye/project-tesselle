@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowRight, Ban, CheckCircle2, Inbox, ShieldCheck } from "lucide-react";
 import { ago, inr, media } from "../api";
 import { Banner, CheckIcon, ProgressBox } from "../components/ui";
+import { BigStat } from "../components/Viz";
 import type { Brief, Deviation, Quote } from "../types";
 import { brief as currentBrief, type StageCtx } from "./ctx";
 
@@ -45,6 +46,7 @@ export function DecisionCardView({ q, d, ctx, compact = false }: { q: Quote; d: 
             <div className="k">{blocked ? "Must stay the same" : "Your preference"}</div>
             <div className="v">{d.original}</div>
           </div>
+          <span className="vs">VS</span>
           <div className={`sbs-cell prop ${blocked ? "" : "amber"}`}>
             <div className="k">{q.seller_name} proposes</div>
             <div className="v">{d.proposed}</div>
@@ -115,6 +117,8 @@ export default function Compare({ ctx }: { ctx: StageCtx }) {
         const [tone, label] = READINESS[q.readiness];
         const total = knownTotal(q);
         const unresolved = q.price_lines.filter((p) => p.amount_inr == null || p.kind === "unresolved");
+        const graded = b.requirements.map((r) => valueFor(q, b, r.id));
+        const met = graded.filter((g) => g.ic === "met").length;
         return (
           <div key={q.id} className="card raised" style={{ overflow: "hidden" }}>
             <div className="row between wrap" style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
@@ -127,6 +131,12 @@ export default function Compare({ ctx }: { ctx: StageCtx }) {
                 <span className={`chip ${tone}`}>{label}</span>
                 {q.status === "approved" && <span className="chip teal">Approved</span>}
               </div>
+            </div>
+            <div className="big-stats" style={{ padding: "16px 18px 0" }}>
+              <BigStat n={met} of={b.requirements.length} label="requirements met" icon={<CheckCircle2 size={13} color="var(--volt)" />} />
+              <BigStat n={pending.length} label={pending.length === 1 ? "decision for you" : "decisions for you"} icon={<AlertTriangle size={13} color={pending.length ? "var(--amber)" : "var(--muted)"} />} />
+              <BigStat n={total != null ? inr(total) : "-"} label={unresolved.length ? "known + unknown charges" : "known total"} icon={<ShieldCheck size={13} color="var(--green)" />} />
+              <BigStat n={q.lead_time_days_min != null ? `${q.lead_time_days_min}-${q.lead_time_days_max}` : "-"} label="days lead time (estimate)" />
             </div>
             <div style={{ padding: 18 }} className="grid-2">
               <div className="section">

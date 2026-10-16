@@ -20,15 +20,16 @@ export default function DemoGuide({ state, onGo, handedOff }: { state: ProjectSt
   const done = BEATS.filter((b) => b.done(state, handedOff)).length;
   return (
     <>
-      <button className="btn sm teal guide-fab" onClick={() => setOpen(!open)}>
-        <Map size={15} /> Demo guide · {done}/10
+      <button className="btn sm light guide-fab" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <Map size={15} /> Demo guide <span className="mono" style={{ fontSize: 11, opacity: 0.7 }}>{done}/10</span>
       </button>
       {open && (
-        <div className="card raised guide">
+        <div className="glass guide">
           <div className="row between">
             <h3>Demonstration storyboard</h3>
             <button className="btn ghost sm icon-btn" onClick={() => setOpen(false)} aria-label="Close guide"><X size={15} /></button>
           </div>
+          <div className="meter" style={{ margin: "2px 0 4px" }}><i style={{ width: `${done * 10}%` }} /></div>
           <div className="tiny muted">All sellers, prices and responses are fictional; orders are sandbox. Follow the beats in order.</div>
           {BEATS.map((b, i) => {
             const ok = b.done(state, handedOff);

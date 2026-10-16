@@ -1,0 +1,20 @@
+// Smoke-check the live site: home renders, a demo project opens, no page errors.
+import { chromium } from "playwright";
+const base = process.argv[2] || "https://project-tesselle.web.app";
+const b = await chromium.launch({ args: ["--use-gl=angle", "--ignore-gpu-blocklist"] });
+const p = await (await b.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
+const errs = [];
+p.on("pageerror", (e) => errs.push(e.message));
+p.on("console", (m) => m.type() === "error" && errs.push("console: " + m.text()));
+await p.goto(base, { waitUntil: "networkidle" });
+await p.waitForTimeout(5500);
+await p.screenshot({ path: "../logs/glass/live-home.png" });
+const icon = await p.evaluate(async () => (await fetch("/icons/icon-192.png")).status);
+console.log("icon", icon, "title", await p.title());
+await p.getByRole("button", { name: /Launch the guided demo/ }).first().click();
+await p.waitForURL(/\/p\/prj_/, { timeout: 60000 });
+await p.waitForTimeout(3500);
+await p.screenshot({ path: "../logs/glass/live-inspire.png" });
+console.log("url", p.url());
+console.log("errors", JSON.stringify(errs));
+await b.close();

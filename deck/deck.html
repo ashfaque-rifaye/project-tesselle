@@ -3,143 +3,166 @@
 <head>
 <meta charset="utf-8" />
 <title>Project Tesselle - Pitch Deck</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   @page { size: 1600px 900px; margin: 0; }
-  :root { --bg:#04060b; --ink:#e9eff8; --ink2:#c0cad9; --muted:#8b98ae; --line:rgba(148,190,255,.14); --teal:#2ef2d0; --cyan:#48c6ff; --violet:#9b7bff; --amber:#ffbe55; --red:#ff5a78;
-          --grad:linear-gradient(120deg,#2ef2d0,#48c6ff 48%,#9b7bff); }
+  :root { --ink:#f2f6f4; --ink2:#cdd9d6; --muted:#92a6a4; --faint:#677b7d; --edge:rgba(255,255,255,.12); --volt:#d7ff3c; --volt-ink:#10170a;
+          --green:#30d158; --amber:#ff9f0a; --red:#ff453a; --sky:#64d2ff; --frost:rgba(238,245,242,.92); }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #000; font-family: Inter, sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .slide { width: 1600px; height: 900px; position: relative; overflow: hidden; page-break-after: always; padding: 78px 96px;
-           background: radial-gradient(900px 600px at 0% -10%, rgba(46,242,208,.14), transparent 60%), radial-gradient(800px 600px at 110% 10%, rgba(155,123,255,.16), transparent 60%), radial-gradient(900px 600px at 50% 130%, rgba(72,198,255,.10), transparent 60%), var(--bg); }
-  .slide::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:.55;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0L56 16.2v32.3L28 64.7 0 48.5V16.2zM28 64.7v32.3' fill='none' stroke='%2394beff' stroke-opacity='0.06'/%3E%3C/svg%3E"); }
-  .slide > * { position: relative; z-index: 1; }
-  .k { font-family: 'JetBrains Mono', monospace; font-size: 15px; letter-spacing: .22em; text-transform: uppercase; color: var(--teal); display:flex; align-items:center; gap:12px; }
-  .k::before { content:""; width: 26px; height: 1px; background: var(--teal); box-shadow: 0 0 10px var(--teal); }
-  h1 { font-family: 'Space Grotesk', sans-serif; font-size: 112px; line-height: .95; letter-spacing: -0.05em; margin: 22px 0 0; font-weight: 600; }
-  h2 { font-family: 'Space Grotesk', sans-serif; font-size: 60px; line-height: 1.03; letter-spacing: -0.04em; margin: 18px 0 0; font-weight: 600; max-width: 1250px; }
-  h3 { font-family: 'Space Grotesk', sans-serif; font-size: 26px; margin: 0; font-weight: 600; letter-spacing: -0.02em; }
-  p, li { font-size: 22px; line-height: 1.5; color: var(--ink2); }
-  .g { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  body { margin: 0; background: #0a1416; font-family: Inter, sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide { width: 1600px; height: 900px; position: relative; overflow: hidden; page-break-after: always; padding: 76px 96px; background: #0b1618; }
+  .slide > .bg { position: absolute; inset: 0; z-index: 0; background: url("img/bg-blur.jpg") center / cover; }
+  .slide > .bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 50% at 85% 85%, rgba(255,179,92,.12), transparent 70%), radial-gradient(50% 50% at 10% 0%, rgba(169,189,185,.16), transparent 70%); }
+  .slide > *:not(.bg):not(.photo):not(.foot):not(.rim) { position: relative; z-index: 2; }
+  .slide > .photo { position: absolute; inset: 18px; z-index: 0; border-radius: 34px; overflow: hidden; }
+  .slide > .photo img { width: 100%; height: 100%; object-fit: cover; }
+  .slide > .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,12,14,.78), rgba(5,12,14,.2) 55%, rgba(5,12,14,.05)), linear-gradient(180deg, transparent 55%, rgba(5,12,14,.6)); }
+  .slide > .rim { position: absolute; inset: 34px; border-radius: 26px; border: 1px solid rgba(255,255,255,.3); z-index: 1; }
+  .k { display: inline-flex; align-items: center; gap: 10px; height: 38px; padding: 0 18px 0 14px; border-radius: 999px; font-family: 'Geist Mono', monospace; font-size: 14px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink2); background: rgba(255,255,255,.08); border: 1px solid var(--edge); }
+  .k::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 12px var(--volt); }
+  h1 { font-family: 'Inter Tight', sans-serif; font-weight: 400; font-size: 120px; line-height: .93; letter-spacing: -0.055em; margin: 26px 0 0; }
+  h1 .soft, h2 .soft { color: rgba(242,246,244,.5); font-weight: 300; }
+  h2 { font-family: 'Inter Tight', sans-serif; font-weight: 400; font-size: 64px; line-height: 1.02; letter-spacing: -0.045em; margin: 22px 0 0; max-width: 1300px; }
+  h3 { font-family: 'Inter Tight', sans-serif; font-size: 27px; margin: 0; font-weight: 500; letter-spacing: -0.025em; }
+  p, li { font-size: 21px; line-height: 1.52; color: var(--ink2); }
+  .v { color: var(--volt); }
   .muted { color: var(--muted); }
-  .mono { font-family: 'JetBrains Mono', monospace; }
-  .card { background: rgba(17,24,38,.66); border: 1px solid var(--line); border-radius: 20px; padding: 26px; }
-  .row { display:flex; gap: 24px; }
-  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 26px; }
-  .grid3 { display:grid; grid-template-columns: repeat(3,1fr); gap: 22px; }
+  .mono { font-family: 'Geist Mono', monospace; }
+  .glass { position: relative; background: linear-gradient(160deg, rgba(255,255,255,.1), rgba(255,255,255,.03) 45%, rgba(255,255,255,.05)), rgba(22,38,42,.55); border: 1px solid var(--edge); border-radius: 30px; padding: 28px; box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 30px 70px -36px rgba(0,0,0,.8); }
+  .frost { background: var(--frost); color: #0b1618; border-radius: 30px; padding: 26px; box-shadow: 0 30px 70px -36px rgba(0,0,0,.8); }
+  .frost p { color: #3d4f4c; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid3 { display:grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
   .grid4 { display:grid; grid-template-columns: repeat(4,1fr); gap: 18px; }
-  .grid5 { display:grid; grid-template-columns: repeat(5,1fr); gap: 16px; }
-  .chip { display:inline-flex; align-items:center; height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(148,190,255,.22); background: rgba(148,190,255,.06); color: var(--ink2); font-size: 17px; font-weight: 550; margin: 0 8px 10px 0; }
-  .chip.t { color:#8ffbe8; border-color: rgba(46,242,208,.4); background: rgba(46,242,208,.1); }
-  .chip.r { color:#ff8fa3; border-color: rgba(255,90,120,.45); background: rgba(255,90,120,.1); }
-  .chip.a { color: var(--amber); border-color: rgba(255,190,85,.45); background: rgba(255,190,85,.1); }
-  .shot { border-radius: 16px; border: 1px solid rgba(148,190,255,.22); box-shadow: 0 30px 80px -30px rgba(46,242,208,.35); width: 100%; display:block; }
-  .num { font-family:'Space Grotesk'; font-size: 64px; font-weight: 600; letter-spacing: -0.04em; }
-  .foot { position:absolute; left:96px; right:96px; bottom: 34px; display:flex; justify-content:space-between; font-family:'JetBrains Mono'; font-size: 13px; letter-spacing:.14em; color: var(--muted); text-transform: uppercase; z-index: 2; }
+  .chip { display:inline-flex; align-items:center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge); background: rgba(255,255,255,.07); color: var(--ink2); font-size: 16px; font-weight: 550; margin: 0 8px 10px 0; }
+  .chip.g { color:#8af3a6; border-color: rgba(48,209,88,.35); background: rgba(48,209,88,.14); }
+  .chip.r { color:#ff8f86; border-color: rgba(255,69,58,.45); background: rgba(255,69,58,.15); }
+  .chip.a { color:#ffc56e; border-color: rgba(255,159,10,.4); background: rgba(255,159,10,.14); }
+  .chip.vt { color: var(--volt); border-color: rgba(215,255,60,.4); background: rgba(215,255,60,.12); }
+  .pill { display:inline-flex; align-items:center; gap: 10px; height: 54px; padding: 0 26px; border-radius: 999px; background: var(--volt); color: var(--volt-ink); font-weight: 650; font-size: 20px; box-shadow: 0 14px 40px -14px rgba(215,255,60,.6); }
+  .mac { border-radius: 18px; overflow: hidden; border: 1px solid rgba(255,255,255,.16); background: #0a1214; box-shadow: 0 40px 100px -40px rgba(0,0,0,.95); }
+  .mac .bar { height: 30px; display:flex; align-items:center; gap: 7px; padding: 0 12px; background: rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.07); }
+  .mac .bar i { width: 11px; height: 11px; border-radius: 50%; background:#ff5f57; } .mac .bar i:nth-child(2){background:#febc2e} .mac .bar i:nth-child(3){background:#28c840}
+  .mac img { display:block; width: 100%; }
+  .glyph { font-family: 'Inter Tight'; font-size: 64px; font-weight: 300; letter-spacing: -0.04em; color: var(--volt); line-height: 1; margin-bottom: 18px; }
+  .foot { position:absolute; left:96px; right:96px; bottom: 34px; display:flex; justify-content:space-between; font-family:'Geist Mono'; font-size: 12.5px; letter-spacing:.16em; color: var(--muted); text-transform: uppercase; z-index: 3; }
   .logo { display:flex; align-items:center; gap: 14px; }
-  .logo img { width: 54px; height: 54px; filter: drop-shadow(0 0 16px rgba(46,242,208,.5)); }
-  .logo b { font-family:'Space Grotesk'; font-size: 30px; }
-  .sbs { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .cell { border-radius: 14px; padding: 16px 18px; border:1px solid var(--line); background: rgba(4,8,16,.6); }
-  .cell .kk { font-family:'JetBrains Mono'; font-size: 13px; letter-spacing:.14em; color: var(--muted); text-transform: uppercase; }
-  .cell .vv { font-family:'Space Grotesk'; font-size: 30px; font-weight: 600; margin-top: 4px; }
-  .keep { border-color: rgba(46,242,208,.6); }
-  .prop { border: 1.5px dashed rgba(255,90,120,.7); }
-  ul { margin: 10px 0 0; padding-left: 24px; }
-  li { margin: 6px 0; }
-  .arch { display:grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 22px; align-items: stretch; margin-top: 34px; }
-  .box { border-radius: 16px; border: 1px solid rgba(148,190,255,.22); background: rgba(17,24,38,.7); padding: 18px 20px; }
-  .box h4 { margin: 0 0 8px; font-family:'JetBrains Mono'; font-size: 13px; letter-spacing:.16em; text-transform: uppercase; color: var(--teal); font-weight: 500; }
-  .box div { font-size: 18px; color: var(--ink2); line-height: 1.55; }
-  .hero-img { position:absolute; right: 0; top: 0; bottom: 0; width: 52%; z-index: 0 !important; }
-  .hero-img img { width: 100%; height: 100%; object-fit: cover; opacity: .55; mask-image: linear-gradient(90deg, transparent, #000 45%); -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%); }
-  .beat { display:grid; grid-template-columns: 46px 1fr; gap: 14px; align-items: start; margin-bottom: 12px; }
-  .beat .n { width: 40px; height: 40px; border-radius: 11px; display:grid; place-items:center; font-family:'JetBrains Mono'; font-weight:600; color:#04121a; background: var(--teal); box-shadow: 0 0 16px rgba(46,242,208,.5); font-size: 15px; }
-  .beat b { font-size: 21px; }
-  .beat span { display:block; color: var(--muted); font-size: 17px; }
+  .logo img { width: 52px; height: 52px; }
+  .logo b { font-family:'Inter Tight'; font-size: 30px; font-weight: 600; letter-spacing: -.03em; }
+  .logo span { display:block; font-family: 'Geist Mono'; font-size: 11px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+  .sbs { display:grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; }
+  .vs { width: 40px; height: 40px; border-radius: 50%; display:grid; place-items:center; background: rgba(255,255,255,.08); font-family:'Geist Mono'; font-size: 12px; color: var(--muted); }
+  .cell { border-radius: 20px; padding: 16px 20px; border:1px solid var(--edge); background: rgba(4,10,12,.45); }
+  .cell .kk { font-family:'Geist Mono'; font-size: 12.5px; letter-spacing:.14em; color: var(--muted); text-transform: uppercase; }
+  .cell .vv { font-family:'Inter Tight'; font-size: 34px; font-weight: 500; letter-spacing: -.035em; margin-top: 4px; }
+  .keep { border-color: rgba(215,255,60,.55); background: linear-gradient(160deg, rgba(215,255,60,.14), rgba(4,10,12,.45)); } .keep .kk { color: var(--volt); }
+  .prop { border: 1.5px dashed rgba(255,69,58,.7); } .prop .vv { text-decoration: line-through; text-decoration-color: rgba(255,69,58,.8); text-decoration-thickness: 3px; }
+  ul { margin: 10px 0 0; padding: 0; list-style: none; }
+  li { margin: 0 0 14px; padding-left: 40px; position: relative; }
+  li::before { content: ""; position: absolute; left: 0; top: 7px; width: 22px; height: 22px; border-radius: 50%; background: var(--volt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310170a' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 14px no-repeat; }
+  .arch { display:grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 20px; align-items: stretch; margin-top: 34px; }
+  .box h4 { margin: 0 0 10px; font-family:'Geist Mono'; font-size: 13px; letter-spacing:.16em; text-transform: uppercase; color: var(--volt); font-weight: 500; }
+  .box div { font-size: 18px; color: var(--ink2); line-height: 1.6; }
+  .track { position: relative; display: flex; flex-direction: column; gap: 44px; }
+  .track::before { content: ""; position: absolute; left: 24px; top: 22px; bottom: 22px; width: 3px; border-radius: 3px; background: linear-gradient(var(--volt), rgba(215,255,60,.45)); box-shadow: 0 0 14px rgba(215,255,60,.5); }
+  .beat { display:grid; grid-template-columns: 50px 1fr; gap: 18px; align-items: center; position: relative; }
+  .beat .n { width: 50px; height: 50px; border-radius: 50%; display:grid; place-items:center; font-family:'Geist Mono'; font-weight:600; color: var(--volt-ink); background: var(--volt); font-size: 15px; box-shadow: 0 0 0 5px rgba(215,255,60,.14); }
+  .beat b { font-size: 27px; font-weight: 600; letter-spacing: -.01em; }
+  .beat span { display:block; color: var(--muted); font-size: 20px; margin-top: 2px; }
+  .shot { display:block; width: 100%; border-radius: 22px; border: 1px solid rgba(255,255,255,.16); box-shadow: 0 30px 80px -34px rgba(0,0,0,.95); object-fit: cover; object-position: top; }
+  .stat { font-family: 'Inter Tight'; font-size: 74px; font-weight: 300; letter-spacing: -.05em; line-height: 1; }
+  .stat small { font-size: 34px; color: var(--muted); }
+  .route { position: relative; height: 14px; border-radius: 14px; background: rgba(255,255,255,.1); margin: 26px 0 30px; }
+  .route i { position: absolute; left: 0; top: 0; bottom: 0; width: 26%; border-radius: inherit; background: linear-gradient(90deg, #ffb35c, var(--volt)); box-shadow: 0 0 18px rgba(215,255,60,.55); }
+  .route b { position: absolute; left: 26%; top: 50%; width: 30px; height: 30px; margin-left: -15px; transform: translateY(-50%); border-radius: 50%; background: #fff; box-shadow: 0 0 0 7px rgba(215,255,60,.25); }
 </style>
 </head>
 <body>
 
 <!-- 1 Title -->
-<section class="slide">
-  <div class="hero-img"><img src="img/hero.jpg" /></div>
-  <div class="logo"><img src="../web/public/favicon.svg" /><b>Tesselle</b></div>
-  <div style="margin-top: 120px"><div class="k">Google Cloud AI Builder Cup 2026 · Retail &amp; Commerce</div>
-  <h1>Imagine it.<br/>Keep what matters.<br/><span class="g">Get it made.</span></h1>
-  <p style="max-width: 760px; margin-top: 30px; font-size: 25px;">Project Tesselle is a personal commerce agent that turns any spark - words, a photo, a video, a glance through smart glasses - into a brief it protects all the way to delivery.</p>
-  <p class="mono" style="font-size: 18px; color: var(--teal); margin-top: 26px;">project-tesselle.web.app</p></div>
-  <div class="foot"><span>Project Tesselle</span><span>Team Tesselle · Ashfaque Rifaye</span></div>
+<section class="slide" style="padding: 96px 120px">
+  <div class="photo"><img src="img/hero-deck.jpg" /></div>
+  <div class="rim"></div>
+  <div class="logo"><img src="../web/public/favicon.svg" /><div><b>Tesselle</b><span>Project · MissionLock</span></div></div>
+  <div style="margin-top: 70px"><div class="k">Google Cloud AI Builder Cup 2026 · Retail &amp; Commerce</div>
+  <h1>Imagine it.<br/><span class="soft">Keep what matters.</span><br/>Get it made.</h1>
+  <p style="max-width: 720px; margin-top: 30px; font-size: 24px; color: var(--ink)">A personal commerce agent that turns any spark - words, a photo, a video, a glance through smart glasses - into a brief it protects all the way to delivery.</p>
+  <div style="margin-top: 26px; display:flex; gap: 14px; align-items:center"><span class="pill">project-tesselle.web.app</span><span class="chip" style="margin:0; height: 44px; background: rgba(4,10,12,.45)">Scene generated with Gemini</span></div></div>
+  <div class="foot" style="left:120px; right:120px; bottom: 56px; justify-content: flex-end"><span>Team Tesselle · Ashfaque Rifaye</span></div>
 </section>
 
 <!-- 2 Problem -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">01 · The problem</div>
-  <h2>Inspiration is easy. Getting <span class="g">the right thing</span> is not.</h2>
+  <h2>Inspiration is easy. <span class="soft">Getting the right thing is not.</span></h2>
   <div class="grid3" style="margin-top: 56px">
-    <div class="card"><div class="num g">≠</div><h3>Similar isn't suitable</h3><p>A product that looks right can be 4 cm too deep, need drilling, or miss the one compartment that mattered.</p></div>
-    <div class="card"><div class="num g">?</div><h3>Search misses aren't answers</h3><p>When stock doesn't fit, shoppers either give up or quietly buy a compromise - and nobody can make the thing they actually wanted.</p></div>
-    <div class="card"><div class="num g">↯</div><h3>Intent gets lost in the middle</h3><p>Seller counteroffers, substitutions, quote changes and device switches rewrite requirements without anyone noticing.</p></div>
+    <div class="glass"><div class="glyph">≠</div><h3>Similar isn't suitable</h3><p>A product that looks right can be 4 cm too deep, need drilling, or miss the one compartment that mattered.</p></div>
+    <div class="glass"><div class="glyph">?</div><h3>Search misses aren't answers</h3><p>When stock doesn't fit, shoppers give up or quietly buy a compromise - and nobody can make the thing they actually wanted.</p></div>
+    <div class="glass"><div class="glyph">↯</div><h3>Intent gets lost in the middle</h3><p>Counteroffers, substitutions, quote changes and device switches rewrite requirements without anyone noticing.</p></div>
   </div>
-  <p style="margin-top: 44px; font-size: 26px; color: var(--ink)">The missing piece isn't more products. It's an agent that <b>preserves what the customer needs</b> through the messy commercial middle.</p>
+  <p style="margin-top: 42px; font-size: 26px; color: var(--ink); max-width: 1200px">The missing piece isn't more products. It's an agent that <b class="v">preserves what the customer needs</b> through the messy commercial middle.</p>
   <div class="foot"><span>Project Tesselle</span><span>02</span></div>
 </section>
 
 <!-- 3 Solution -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">02 · The solution</div>
-  <h2>One agent. One brief. <span class="g">Four credible routes.</span></h2>
-  <div class="grid2" style="margin-top: 46px; align-items: start">
-    <div>
-      <div class="card" style="margin-bottom: 20px"><h3><span class="g">MissionLock</span> - the intent safeguard</h3><p>A living, versioned brief: must-haves, flexible preferences, budget, unknowns and acceptance checks. Nothing material changes without the customer's explicit decision.</p></div>
-      <div class="card"><h3><span class="g">Fulfilment</span> - buy, source, customise or make</h3><p>Every route is checked against the same brief, requirement by requirement. When nothing fits, a maker gets a clean brief - and their counteroffer becomes the customer's decision, never a silent swap.</p></div>
+  <h2>One agent. One brief. <span class="soft">Four credible routes.</span></h2>
+  <div class="grid2" style="margin-top: 42px; align-items: start; grid-template-columns: .82fr 1.18fr">
+    <div style="display:flex; flex-direction:column; gap: 18px">
+      <div class="glass"><h3><span class="v">MissionLock</span> - the intent safeguard</h3><p style="margin: 10px 0 0">A living, versioned brief: must-haves, flexible preferences, budget, unknowns and acceptance checks. Nothing material changes without the customer's explicit decision.</p></div>
+      <div class="glass"><h3><span class="v">Fulfilment</span> - buy, source, customise or make</h3><p style="margin: 10px 0 0">Every route is checked against the same brief, requirement by requirement. When nothing fits, a maker gets a clean brief - and their counteroffer becomes the customer's decision.</p></div>
     </div>
-    <img class="shot" src="img/compare.png" />
+    <div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/compare.jpg" /></div>
   </div>
   <div class="foot"><span>Project Tesselle</span><span>03</span></div>
 </section>
 
 <!-- 4 MissionLock -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">03 · How MissionLock works</div>
-  <h2>Language models propose. <span class="g">Deterministic code decides.</span></h2>
-  <div class="grid2" style="margin-top: 44px; align-items: start">
+  <h2>Language models propose. <span class="soft">Deterministic code decides.</span></h2>
+  <div class="grid2" style="margin-top: 42px; align-items: start">
     <div>
       <ul>
         <li><b style="color:var(--ink)">Fit verdicts</b> - meets / possible with a change / not suitable, computed in code from structured requirements.</li>
         <li><b style="color:var(--ink)">Quote deviations</b> - every offered spec is diffed against the brief version it answers.</li>
         <li><b style="color:var(--ink)">Approval gates</b> - no stale quote, no changed brief, no unmet must-have, no duplicate order.</li>
-        <li><b style="color:var(--ink)">Honest uncertainty</b> - photo sizes are "Needs checking"; unknown charges are never folded into a total.</li>
+        <li><b style="color:var(--ink)">Honest uncertainty</b> - photo sizes stay "Needs checking"; unknown charges never join a total.</li>
       </ul>
-      <p class="muted" style="margin-top: 20px">Gemini agents only <i>explain</i> the verdicts - a cheaper or prettier item that breaks a must-have is never promoted.</p>
+      <p class="muted" style="margin-top: 14px">Gemini agents only <i>explain</i> verdicts - a cheaper or prettier item that breaks a must-have is never promoted.</p>
     </div>
-    <div class="card">
-      <div class="row" style="align-items:center; justify-content: space-between"><h3>Maker proposes a 20 cm jig</h3><span class="chip r">Blocked</span></div>
-      <div class="sbs" style="margin-top: 18px">
+    <div class="glass" style="border-color: rgba(255,69,58,.45); background: linear-gradient(180deg, rgba(255,69,58,.14), rgba(18,32,36,.6) 60%)">
+      <div style="display:flex; align-items:center; justify-content: space-between"><h3>Maker proposes a 20 cm jig</h3><span class="chip r" style="margin:0">Blocked</span></div>
+      <div class="sbs" style="margin-top: 22px">
         <div class="cell keep"><div class="kk">Must stay the same</div><div class="vv">18 cm max</div></div>
+        <span class="vs">VS</span>
         <div class="cell prop"><div class="kk">Proposed</div><div class="vv">20 cm</div></div>
       </div>
-      <p style="margin-top: 18px">Customer keeps 18 cm → the maker revises the layout at <b style="color:var(--teal)">16 cm</b>. A small price rise becomes a <span class="chip a" style="margin:0">flexible decision</span></p>
-      <p class="muted" style="font-size: 18px">Before that: a gorgeous bamboo station was rejected - <b style="color:#ff8fa3">22 cm deep</b>.</p>
+      <p style="margin-top: 20px">Customer keeps 18 cm → the maker revises the layout at <b class="v">16 cm</b>. A small price rise becomes a <span class="chip a" style="margin:0">flexible decision</span></p>
+      <p class="muted" style="font-size: 18px; margin: 0">Before that: a gorgeous bamboo station was rejected - <b style="color:#ff8f86">22 cm deep</b>.</p>
     </div>
   </div>
   <div class="foot"><span>Project Tesselle</span><span>04</span></div>
 </section>
 
-<!-- 5 Journey / demo -->
+<!-- 5 Journey -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">04 · The demonstration</div>
-  <h2>The full journey, <span class="g">live on Google Cloud.</span></h2>
-  <div class="grid2" style="margin-top: 36px; align-items: start; grid-template-columns: .9fr 1.1fr">
-    <div>
+  <h2>The full journey, <span class="soft">tracked live on Google Cloud.</span></h2>
+  <div class="grid2" style="margin-top: 56px; gap: 60px">
+    <div class="track">
       <div class="beat"><div class="n">1</div><div><b>Inspiration</b><span>Desk photo + "18 cm shelf, I rent, no drilling, about ₹3,000"</span></div></div>
       <div class="beat"><div class="n">2</div><div><b>Intent</b><span>Gemini drafts; the customer confirms must-haves vs flexible</span></div></div>
       <div class="beat"><div class="n">3</div><div><b>Concept</b><span>Labelled render; pin an area to refine</span></div></div>
       <div class="beat"><div class="n">4</div><div><b>Existing stock</b><span>22 cm beauty rejected - honest "no suitable match"</span></div></div>
       <div class="beat"><div class="n">5</div><div><b>Maker request</b><span>Privacy-filtered brief, reviewed before sending</span></div></div>
     </div>
-    <div>
+    <div class="track">
       <div class="beat"><div class="n">6</div><div><b>Counteroffer</b><span>20 cm proposal blocked by MissionLock</span></div></div>
       <div class="beat"><div class="n">7</div><div><b>Resolution</b><span>Revised 16 cm layout keeps the must-have</span></div></div>
       <div class="beat"><div class="n">8</div><div><b>Device handoff</b><span>QR → same pending decision on the phone, spoken recap</span></div></div>
@@ -147,74 +170,78 @@
       <div class="beat"><div class="n">10</div><div><b>Aftercare</b><span>Gemini vision checks delivery against approved checks</span></div></div>
     </div>
   </div>
-  <p class="mono" style="font-size: 16px; color: var(--muted); margin-top: 14px">All ten beats are asserted end-to-end against the live deployment by tools/e2e_storyboard.py.</p>
+  <p class="mono" style="font-size: 15px; color: var(--muted); margin-top: 22px">All ten beats are asserted end-to-end against the live deployment by tools/e2e_storyboard.py.</p>
   <div class="foot"><span>Project Tesselle</span><span>05</span></div>
 </section>
 
 <!-- 6 Screens -->
-<section class="slide" style="padding-top: 64px">
+<section class="slide" style="padding-top: 62px">
+  <div class="bg"></div>
   <div class="k">05 · Experience</div>
-  <h2 style="font-size: 50px">A calm, futuristic workspace - <span class="g">every decision explained.</span></h2>
-  <div class="grid2" style="margin-top: 28px; gap: 18px">
-    <img class="shot" style="height: 318px; object-fit: cover; object-position: top" src="img/routes.png" />
-    <img class="shot" style="height: 318px; object-fit: cover; object-position: top" src="img/home.png" />
-    <img class="shot" style="height: 318px; object-fit: cover; object-position: top" src="img/compare.png" />
-    <img class="shot" style="height: 318px; object-fit: cover; object-position: center" src="img/glasses.png" />
+  <h2 style="font-size: 52px">Liquid glass, live tracking - <span class="soft">every decision explained.</span></h2>
+  <div class="grid2" style="margin-top: 26px; gap: 18px">
+    <img class="shot" style="height: 318px; object-position: center top" src="img/home.jpg" />
+    <img class="shot" style="height: 318px" src="img/routes.jpg" />
+    <img class="shot" style="height: 318px" src="img/compare.jpg" />
+    <img class="shot" style="height: 318px; object-position: center" src="img/glasses.jpg" />
   </div>
   <div class="foot"><span>Project Tesselle</span><span>06</span></div>
 </section>
 
 <!-- 7 Gen AI depth -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">06 · Gen AI implementation</div>
-  <h2>Nine Gemini agents, <span class="g">one graph workflow, real memory.</span></h2>
+  <h2>Nine Gemini agents, <span class="soft">one graph workflow, real memory.</span></h2>
   <div class="grid3" style="margin-top: 40px">
-    <div class="card"><h3>Multimodal intake</h3><p>ADK LlmAgent on Gemini 3.8 Flash with typed output: text, voice, photos, <b>video</b> and generated images.</p></div>
-    <div class="card"><h3>Route explorer</h3><p><b>ADK 2 graph Workflow</b>: three scouts in parallel → JoinNode → analyst. Firestore vector search over Gemini embeddings.</p></div>
-    <div class="card"><h3>Creative studio</h3><p>Art-director agent + Gemini image generation; click-to-pin visual prompting; flags edits that would touch the brief.</p></div>
-    <div class="card"><h3>Negotiation</h3><p>AI-simulated maker agent quotes per brief version; deviation-explainer agent writes decision cards.</p></div>
-    <div class="card"><h3>Memory &amp; continuity</h3><p><b>Agent Platform Sessions</b> per project and <b>Memory Bank</b> for durable preferences ("I rent - no drilling").</p></div>
-    <div class="card"><h3>Voice &amp; vision</h3><p>Concierge with function tools, Gemini TTS replies, recap agent, and a delivery inspector that knows what a photo can't prove.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">INTAKE</div><h3 style="margin-top:8px">Multimodal intake</h3><p style="margin-bottom:0">ADK LlmAgent on Gemini 3.8 Flash with typed output: text, voice, photos, <b>video</b> and generated images.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">ROUTES</div><h3 style="margin-top:8px">Route explorer</h3><p style="margin-bottom:0"><b>ADK 2 graph Workflow</b>: three scouts in parallel → JoinNode → analyst. Firestore vector search over Gemini embeddings.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">STUDIO</div><h3 style="margin-top:8px">Creative studio</h3><p style="margin-bottom:0">Art-director agent + Gemini image generation; click-to-pin visual prompting; flags edits that would touch the brief.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">NEGOTIATE</div><h3 style="margin-top:8px">Negotiation</h3><p style="margin-bottom:0">AI-simulated maker agent quotes per brief version; deviation-explainer agent writes decision cards.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">MEMORY</div><h3 style="margin-top:8px">Memory &amp; continuity</h3><p style="margin-bottom:0"><b>Agent Platform Sessions</b> per project and <b>Memory Bank</b> for durable preferences ("I rent - no drilling").</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">VOICE + VISION</div><h3 style="margin-top:8px">Voice &amp; vision</h3><p style="margin-bottom:0">Concierge with function tools, Gemini TTS replies, recap agent, and a delivery inspector that knows what a photo can't prove.</p></div>
   </div>
   <div class="foot"><span>Project Tesselle</span><span>07</span></div>
 </section>
 
 <!-- 8 Architecture -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">07 · Architecture</div>
-  <h2>Built end-to-end on <span class="g">Google Cloud.</span></h2>
+  <h2>Built end-to-end <span class="soft">on Google Cloud.</span></h2>
   <div class="arch">
-    <div class="box"><h4>Surfaces</h4><div>React + Three.js workspace<br/>Phone surface (QR handoff)<br/>Glasses HUD capture<br/>PWA share target (Ray-Ban Meta)<br/>Seller workspace<br/><br/><b style="color:var(--ink)">Firebase Hosting</b> CDN</div></div>
-    <div class="box" style="border-color: rgba(46,242,208,.5)"><h4>Cloud Run · FastAPI + Google ADK 2</h4><div>9 LlmAgents with output schemas &amp; tools<br/>Graph Workflow (parallel scouts + join)<br/><b style="color:var(--teal)">MissionLock guard</b> - deterministic<br/>NDJSON progress streams with heartbeats<br/>OpenTelemetry → Cloud Trace<br/>Least-privilege service account · no API keys</div></div>
-    <div class="box"><h4>Vertex AI / Agent Platform</h4><div>Gemini 3.8 Flash (text, vision, video)<br/>Gemini 3.1 Flash Image<br/>Gemini Embedding 2<br/>Gemini 2.5 Flash TTS<br/>Agent Runtime: Sessions + Memory Bank</div></div>
+    <div class="glass box"><h4>Surfaces</h4><div>React liquid-glass workspace + Three.js hero<br/>Phone surface (QR handoff)<br/>Glasses HUD capture<br/>PWA share target (Ray-Ban Meta)<br/>Seller workspace<br/><br/><b style="color:var(--ink)">Firebase Hosting</b> CDN</div></div>
+    <div class="glass box" style="border-color: rgba(215,255,60,.45)"><h4>Cloud Run · FastAPI + Google ADK 2</h4><div>9 LlmAgents with output schemas &amp; tools<br/>Graph Workflow (parallel scouts + join)<br/><b class="v">MissionLock guard</b> - deterministic<br/>NDJSON progress streams with heartbeats<br/>OpenTelemetry → Cloud Trace<br/>Least-privilege service account · no API keys</div></div>
+    <div class="glass box"><h4>Vertex AI / Agent Platform</h4><div>Gemini 3.8 Flash (text, vision, video)<br/>Gemini 3.1 Flash Image<br/>Gemini Embedding 2<br/>Gemini 2.5 Flash TTS<br/>Agent Runtime: Sessions + Memory Bank</div></div>
   </div>
-  <div class="arch" style="grid-template-columns: repeat(4, 1fr); margin-top: 22px">
-    <div class="box"><h4>Firestore</h4><div>Projects, immutable brief versions, quotes, orders, event trace + vector index</div></div>
-    <div class="box"><h4>Cloud Storage</h4><div>Private media: inspirations, concepts, proposals, evidence</div></div>
-    <div class="box"><h4>Cloud Build + Artifact Registry</h4><div>Container builds, asia-southeast1</div></div>
-    <div class="box"><h4>Logging · Trace · Billing labels</h4><div>Every Gemini call labelled app=tesselle; daily cost guard</div></div>
+  <div class="arch" style="grid-template-columns: repeat(4, 1fr); margin-top: 20px">
+    <div class="glass box" style="padding: 22px"><h4>Firestore</h4><div>Projects, immutable brief versions, quotes, orders, event trace + vector index</div></div>
+    <div class="glass box" style="padding: 22px"><h4>Cloud Storage</h4><div>Private media: inspirations, concepts, proposals, evidence</div></div>
+    <div class="glass box" style="padding: 22px"><h4>Cloud Build + Registry</h4><div>Container builds, asia-southeast1</div></div>
+    <div class="glass box" style="padding: 22px"><h4>Logging · Trace · Labels</h4><div>Every Gemini call labelled app=tesselle; daily cost guard</div></div>
   </div>
   <div class="foot"><span>Project Tesselle</span><span>08</span></div>
 </section>
 
 <!-- 9 Capture anywhere -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">08 · Capture anywhere</div>
-  <h2>From a sentence <span class="g">to a glance through your glasses.</span></h2>
-  <div class="grid2" style="margin-top: 40px; align-items: center">
+  <h2>From a sentence <span class="soft">to a glance through your glasses.</span></h2>
+  <div class="grid2" style="margin-top: 38px; align-items: center">
     <div>
       <div class="grid2" style="gap: 16px">
-        <div class="card"><h3>Speak it</h3><p style="font-size:19px">Voice notes understood directly by Gemini.</p></div>
-        <div class="card"><h3>Capture it</h3><p style="font-size:19px">Live camera photos and short clips; video understanding.</p></div>
-        <div class="card"><h3>Imagine it</h3><p style="font-size:19px">Gemini renders an inspiration, labelled as a concept.</p></div>
-        <div class="card"><h3>Glance at it</h3><p style="font-size:19px">Glasses HUD + PWA share target; replies spoken aloud.</p></div>
+        <div class="glass" style="padding: 22px"><h3>Speak it</h3><p style="font-size:18px; margin: 8px 0 0">Voice notes understood directly by Gemini.</p></div>
+        <div class="glass" style="padding: 22px"><h3>Capture it</h3><p style="font-size:18px; margin: 8px 0 0">Live camera photos and short clips; video understanding.</p></div>
+        <div class="glass" style="padding: 22px"><h3>Imagine it</h3><p style="font-size:18px; margin: 8px 0 0">Gemini renders an inspiration, labelled as a concept.</p></div>
+        <div class="glass" style="padding: 22px"><h3>Glance at it</h3><p style="font-size:18px; margin: 8px 0 0">Glasses HUD + PWA share target; replies spoken aloud.</p></div>
       </div>
-      <p class="muted" style="margin-top: 18px; font-size: 18px">Ray-Ban Meta captures sync to the phone and are shared straight to Tesselle. Direct camera streaming via Meta's native SDK is on the roadmap.</p>
+      <p class="muted" style="margin-top: 18px; font-size: 17px">Ray-Ban Meta captures sync to the phone and are shared straight to Tesselle. Direct camera streaming via Meta's native SDK is on the roadmap.</p>
     </div>
     <div style="position: relative">
-      <img class="shot" src="img/glasses-life.jpg" />
-      <img class="shot" src="img/glasses.png" style="position:absolute; width: 46%; right: -18px; bottom: -40px; box-shadow: 0 20px 60px rgba(0,0,0,.7)" />
-      <span class="chip" style="position:absolute; left: 14px; top: 14px; background: rgba(4,6,11,.7)">Lifestyle image · Canva AI</span>
+      <img class="shot" src="img/glasses-life.jpg" style="height: 470px" />
+      <img class="shot" src="img/glasses.jpg" style="position:absolute; width: 50%; right: -20px; bottom: -36px; height: auto; box-shadow: 0 20px 60px rgba(0,0,0,.75)" />
+      <span class="chip" style="position:absolute; left: 14px; top: 14px; background: rgba(4,10,12,.6)">Lifestyle image · Canva AI</span>
     </div>
   </div>
   <div class="foot"><span>Project Tesselle</span><span>09</span></div>
@@ -222,63 +249,68 @@
 
 <!-- 10 Impact & business -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">09 · Impact &amp; business</div>
-  <h2>Unmet demand becomes <span class="g">actionable demand.</span></h2>
+  <h2>Unmet demand becomes <span class="soft">actionable demand.</span></h2>
   <div class="grid3" style="margin-top: 44px">
-    <div class="card"><h3>Customers</h3><p>Less repeated searching and explaining, visible trade-offs, access to custom making - and the confidence that what arrives is what they approved.</p></div>
-    <div class="card"><h3>Makers &amp; retailers</h3><p>Qualified, structured briefs instead of vague enquiries; a way to serve demand existing stock can't. They can decline or propose - never be misrepresented.</p></div>
-    <div class="card"><h3>Model</h3><p>Disclosed fee on completed sourcing or custom orders; seller subscriptions for brief and quote management; optional design and sampling services.</p></div>
+    <div class="glass"><h3>Customers</h3><p style="margin-bottom:0">Less repeated searching and explaining, visible trade-offs, access to custom making - and confidence that what arrives is what they approved.</p></div>
+    <div class="glass"><h3>Makers &amp; retailers</h3><p style="margin-bottom:0">Qualified, structured briefs instead of vague enquiries; a way to serve demand existing stock can't. They can decline or propose - never be misrepresented.</p></div>
+    <div class="glass"><h3>Model</h3><p style="margin-bottom:0">Disclosed fee on completed sourcing or custom orders; seller subscriptions for brief and quote management; optional design and sampling services.</p></div>
   </div>
-  <div class="card" style="margin-top: 26px"><h3>What we'll validate (not claimed as achieved)</h3><p>Brief completion · request-to-quote conversion · suitable-quote acceptance · requirement changes after approval · delivered-item acceptance - against an ordinary search-and-enquiry journey, with consented user testing.</p></div>
+  <div class="frost" style="margin-top: 24px"><h3>What we'll validate (not claimed as achieved)</h3><p style="margin: 8px 0 0">Brief completion · request-to-quote conversion · suitable-quote acceptance · requirement changes after approval · delivered-item acceptance - against an ordinary search-and-enquiry journey, with consented user testing.</p></div>
   <div class="foot"><span>Project Tesselle</span><span>10</span></div>
 </section>
 
 <!-- 11 Responsible -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">10 · Trust by design</div>
-  <h2>Honest by default. <span class="g">Safe by construction.</span></h2>
-  <div class="grid2" style="margin-top: 40px">
-    <ul>
+  <h2>Honest by default. <span class="soft">Safe by construction.</span></h2>
+  <div class="grid2" style="margin-top: 44px">
+    <div class="glass"><ul style="margin:0">
       <li>Four unmistakable visual states: concept, existing product, supplier proposal, approved sample.</li>
       <li>Must-haves change only through a labelled decision that creates a new brief version.</li>
       <li>"No suitable match found in the sources checked" - an honest dead end beats a fabricated success.</li>
-      <li>Demo sellers are fictional and AI-simulated; orders are sandbox - and labelled so.</li>
-    </ul>
-    <ul>
+      <li style="margin-bottom:0">Demo sellers are fictional and AI-simulated; orders are sandbox - and labelled so.</li>
+    </ul></div>
+    <div class="glass"><ul style="margin:0">
       <li>Sellers receive a privacy-filtered brief - no name, address or home imagery unless the customer opts in.</li>
       <li>The conversational agent cannot send requests, accept seller changes or approve spending.</li>
       <li>Vertex AI only, one service identity, no API keys; billing labels on every Gemini call.</li>
-      <li>Public-demo cost guard caps daily model and image calls.</li>
-    </ul>
+      <li style="margin-bottom:0">Public-demo cost guard caps daily model and image calls.</li>
+    </ul></div>
   </div>
   <div class="foot"><span>Project Tesselle</span><span>11</span></div>
 </section>
 
 <!-- 12 Roadmap -->
 <section class="slide">
+  <div class="bg"></div>
   <div class="k">11 · What's next</div>
-  <h2>From one desk organiser <span class="g">to a demand engine.</span></h2>
-  <div class="grid4" style="margin-top: 50px">
-    <div class="card"><div class="mono" style="color:var(--teal)">NOW</div><h3 style="margin-top:8px">Live prototype</h3><p style="font-size:19px">Full storyboard, multimodal + glasses capture, memory, sandbox orders.</p></div>
-    <div class="card"><div class="mono" style="color:var(--teal)">NEXT</div><h3 style="margin-top:8px">Real makers</h3><p style="font-size:19px">Onboard participating makers in Tamil Nadu and Karnataka; verified quote workflow.</p></div>
-    <div class="card"><div class="mono" style="color:var(--teal)">THEN</div><h3 style="margin-top:8px">Live voice &amp; glasses</h3><p style="font-size:19px">Gemini Live conversations; Meta wearables SDK for direct capture.</p></div>
-    <div class="card"><div class="mono" style="color:var(--teal)">LATER</div><h3 style="margin-top:8px">Shared demand</h3><p style="font-size:19px">Opt-in pooling of compatible briefs when minimum quantities block a maker.</p></div>
+  <h2>From one desk organiser <span class="soft">to a demand engine.</span></h2>
+  <div class="route"><i></i><b></b></div>
+  <div class="grid4">
+    <div class="frost"><div class="mono" style="color:#5b7a00; font-size: 13px; letter-spacing: .16em">NOW</div><h3 style="margin-top:8px">Live prototype</h3><p style="font-size:18px; margin-bottom:0">Full storyboard, multimodal + glasses capture, memory, sandbox orders.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">NEXT</div><h3 style="margin-top:8px">Real makers</h3><p style="font-size:18px; margin-bottom:0">Onboard participating makers in Tamil Nadu and Karnataka; verified quote workflow.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">THEN</div><h3 style="margin-top:8px">Live voice &amp; glasses</h3><p style="font-size:18px; margin-bottom:0">Gemini Live conversations; Meta wearables SDK for direct capture.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">LATER</div><h3 style="margin-top:8px">Shared demand</h3><p style="font-size:18px; margin-bottom:0">Opt-in pooling of compatible briefs when minimum quantities block a maker.</p></div>
   </div>
   <div class="foot"><span>Project Tesselle</span><span>12</span></div>
 </section>
 
 <!-- 13 Thank you -->
-<section class="slide">
-  <div class="hero-img"><img src="img/hero.jpg" /></div>
-  <div class="logo"><img src="../web/public/favicon.svg" /><b>Tesselle</b></div>
-  <div style="margin-top: 150px">
+<section class="slide" style="padding: 96px 120px">
+  <div class="photo"><img src="img/hero-deck.jpg" /></div>
+  <div class="rim"></div>
+  <div class="logo"><img src="../web/public/favicon.svg" /><div><b>Tesselle</b><span>Project · MissionLock</span></div></div>
+  <div style="margin-top: 120px">
     <div class="k">Try it</div>
-    <h1 style="font-size: 96px">Your intent,<br/><span class="g">kept.</span></h1>
-    <p class="mono" style="font-size: 24px; color: var(--teal); margin-top: 36px">project-tesselle.web.app</p>
-    <p class="mono" style="font-size: 18px; color: var(--muted)">tesselle-448771854429.asia-southeast1.run.app</p>
-    <p style="margin-top: 26px; max-width: 760px">Launch the guided demo - about five minutes, no sign-up. Demo sellers are fictional; orders are sandbox.</p>
+    <h1 style="font-size: 108px">Your intent,<br/><span class="soft">kept.</span></h1>
+    <div style="margin-top: 34px; display:flex; gap: 14px; align-items: center"><span class="pill">project-tesselle.web.app</span></div>
+    <p class="mono" style="font-size: 17px; color: var(--ink2); margin-top: 18px">tesselle-448771854429.asia-southeast1.run.app</p>
+    <p style="margin-top: 10px; max-width: 720px; color: var(--ink)">Launch the guided demo - about five minutes, no sign-up. Demo sellers are fictional; orders are sandbox.</p>
   </div>
-  <div class="foot"><span>Project Tesselle · Google Cloud AI Builder Cup 2026</span><span>Thank you</span></div>
+  <div class="foot" style="left:120px; right:120px; bottom: 56px; justify-content: flex-end"><span>Google Cloud AI Builder Cup 2026 · Thank you</span></div>
 </section>
 
 </body>

@@ -19,6 +19,9 @@ async function shot(path, name, wait = 2500, fn) {
 await shot("/", "01-home", 3000);
 await shot("/", "02-home-scrolled", 1500, async () => { await page.mouse.wheel(0, 1000); await page.waitForTimeout(1500); });
 await shot("/", "03-home-mid", 1500, async () => { await page.mouse.wheel(0, 2200); await page.waitForTimeout(1500); });
+for (const [y, n] of [[1150, "04-home-dash"], [3000, "05-home-devices"], [3900, "06-home-stack"]]) {
+  await shot("/", n, 1200, async () => { await page.evaluate((y) => window.scrollTo(0, y), y); await page.waitForTimeout(400); await page.evaluate((y) => window.scrollTo(0, y), y); await page.waitForTimeout(1600); });
+}
 if (pid) {
   for (const s of ["inspire", "clarify", "visualise", "routes", "request", "compare", "approve", "fulfil", "accept"]) {
     await shot(`/p/${pid}/${s}`, `p-${s}`, 2500);

@@ -6,18 +6,33 @@ import Seller from "./pages/Seller";
 import Glasses from "./pages/Glasses";
 import Share from "./pages/Share";
 
+/** The misty light every glass surface is seen against. */
+function Atmosphere() {
+  return (
+    <div className="atmos" aria-hidden="true">
+      <div className="photo" />
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Hub />} />
-      <Route path="/p/:pid" element={<Workspace />} />
-      <Route path="/p/:pid/:stage" element={<Workspace />} />
-      <Route path="/m/:pid" element={<Phone />} />
-      <Route path="/g/:pid" element={<Glasses />} />
-      <Route path="/share" element={<Share />} />
-      <Route path="/seller" element={<Seller />} />
-      <Route path="/seller/:sellerId" element={<Seller />} />
-      <Route path="*" element={<Hub />} />
-    </Routes>
+    <>
+      <Atmosphere />
+      <Routes>
+        <Route path="/" element={<Hub />} />
+        <Route path="/p/:pid" element={<Workspace />} />
+        <Route path="/p/:pid/:stage" element={<Workspace />} />
+        <Route path="/m/:pid" element={<Phone />} />
+        <Route path="/g/:pid" element={<Glasses />} />
+        <Route path="/share" element={<Share />} />
+        <Route path="/seller" element={<Seller />} />
+        <Route path="/seller/:sellerId" element={<Seller />} />
+        <Route path="*" element={<Hub />} />
+      </Routes>
+    </>
   );
 }

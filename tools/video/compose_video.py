@@ -161,8 +161,8 @@ def main() -> None:
         p = OUT / f"seg{i:03d}.mp4"
         vf = f"setpts=(PTS-STARTPTS)/{sp:.4f},fps={FPS},scale={W}:{H}"
         if sp > 1.01:
-            vf += (f",drawbox=x=iw-330:y=ih-74:w=300:h=44:color=0x04060b@0.75:t=fill,"
-                   f"drawtext=text='Gemini working - sped up x{sp:.0f}':x=w-315:y=h-60:fontsize=19:fontcolor=0x2ef2d0:fontfile='C\:/Windows/Fonts/consola.ttf'")
+            vf += (f",drawbox=x=iw-330:y=ih-74:w=300:h=44:color=0x0b1618@0.75:t=fill,"
+                   f"drawtext=text='Gemini working - sped up x{sp:.0f}':x=w-315:y=h-60:fontsize=19:fontcolor=0xd7ff3c:fontfile='C\:/Windows/Fonts/consola.ttf'")
         if last_idx.get(beat) == i and deficit.get(beat, 0) > 0.05:
             vf += f",tpad=stop_mode=clone:stop_duration={deficit[beat]:.2f}"
         run(["ffmpeg", "-loglevel", "error", "-y", "-ss", f"{a:.3f}", "-to", f"{b:.3f}", "-i", str(raw), "-an", "-vf", vf,
@@ -174,21 +174,24 @@ def main() -> None:
     intro_hold = max(0.0, vo.get("intro", 0) + 0.8 - duration(INTRO))
     run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(INTRO), "-an", "-vf",
          f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},tpad=stop_mode=clone:stop_duration={intro_hold:.2f},"
-         "drawbox=x=0:y=0:w=iw:h=230:color=0x04060b@0.55:t=fill,"
+         "drawbox=x=0:y=0:w=iw:h=230:color=0x0b1618@0.55:t=fill,"
          "drawtext=text='Project Tesselle':x=80:y=52:fontsize=74:fontcolor=white:fontfile='C\:/Windows/Fonts/seguisb.ttf',"
-         "drawtext=text='Imagine it. Keep what matters. Get it made.':x=84:y=150:fontsize=30:fontcolor=0x2ef2d0:fontfile='C\:/Windows/Fonts/segoeui.ttf',"
+         "drawtext=text='Imagine it. Keep what matters. Get it made.':x=84:y=150:fontsize=30:fontcolor=0xd7ff3c:fontfile='C\:/Windows/Fonts/segoeui.ttf',"
          "fade=t=in:st=0:d=0.6",
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", str(intro)])
     outro = OUT / "outro.mp4"
     lines = [
-        ("Project Tesselle", 76, "white", 250), ("project-tesselle.web.app", 40, "0x2ef2d0", 360),
-        ("Gemini 3.8 Flash · Gemini image, video, embeddings, TTS · Google ADK 2 agents + graph Workflow", 26, "0xc0cad9", 470),
-        ("Agent Platform Sessions + Memory Bank · Cloud Run · Firestore vector search · Cloud Storage · Firebase Hosting", 26, "0xc0cad9", 515),
-        ("Demo sellers are fictional and AI-simulated; orders are sandbox. Google Cloud AI Builder Cup 2026.", 22, "0x8b98ae", 640),
+        ("Project Tesselle", 76, "white", 250), ("project-tesselle.web.app", 40, "0xd7ff3c", 360),
+        ("Gemini 3.8 Flash · Gemini image, video, embeddings, TTS · Google ADK 2 agents + graph Workflow", 26, "0xcdd9d6", 470),
+        ("Agent Platform Sessions + Memory Bank · Cloud Run · Firestore vector search · Cloud Storage · Firebase Hosting", 26, "0xcdd9d6", 515),
+        ("Demo sellers are fictional and AI-simulated; orders are sandbox. Google Cloud AI Builder Cup 2026.", 22, "0x92a6a4", 640),
     ]
     dt = ",".join(f"drawtext=text='{t}':x=(w-text_w)/2:y={y}:fontsize={fs}:fontcolor={c}:fontfile='C\:/Windows/Fonts/segoeui.ttf'" for t, fs, c, y in lines)
-    run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x04060b:s={W}x{H}:d=4.5:r={FPS}", "-vf",
-         f"{dt},fade=t=in:st=0:d=0.5", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", str(outro)])
+    # Outro over the blurred Gemini-generated hero scene, matching the app's misty glass palette.
+    bg = ROOT / "deck" / "img" / "bg-blur.jpg"
+    run(["ffmpeg", "-loglevel", "error", "-y", "-loop", "1", "-t", "4.5", "-i", str(bg), "-vf",
+         f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},{dt},fade=t=in:st=0:d=0.5",
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", str(outro)])
 
     # 4. Concatenate and compute exact beat start times from the rendered parts.
     lst = OUT / "concat.txt"
@@ -224,7 +227,7 @@ def main() -> None:
     sub = str(srt_path).replace("\\", "/").replace(":", "\:")
     final = OUT / "Project-Tesselle-demo.mp4"
     run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(body), "-i", str(narration),
-         "-vf", f"subtitles='{sub}':force_style='FontName=Segoe UI,FontSize=15,PrimaryColour=&H00F8EFE9,BackColour=&H990B0604,BorderStyle=4,Outline=0,Shadow=0,MarginV=26'",
+         "-vf", f"subtitles='{sub}':force_style='FontName=Segoe UI,FontSize=15,PrimaryColour=&H00F8EFE9,BackColour=&H9918160B,BorderStyle=4,Outline=0,Shadow=0,MarginV=26'",
          "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-t", f"{final_len:.2f}", str(final)])
     print(f"final: {final} ({duration(final):.1f}s); freezes added: "

@@ -53,7 +53,7 @@ recaps via Gemini TTS.
 | Technical merit & Gen AI (40%) | ADK agents + graph workflow, deterministic MissionLock guard, multimodal intake incl. video, Memory Bank, TTS, vector search, in-app evidence trace, Cloud Trace |
 | Problem alignment & impact (25%) | Retail & Commerce: unmet demand → structured maker requests; honest no-match outcomes |
 | Innovation (25%) | Intent preservation as a first-class, versioned object; seller deviations become customer decisions; glasses-to-agent capture |
-| UX (10%) | Immersive 3D home, glass workspace with intent card and decision cards, phone and glasses surfaces, accessibility labels |
+| UX (10%) | Liquid-glass "Mist & Volt" design system: cinematic Gemini-generated hero with a refractive Three.js glass gem, Dynamic-Island live agent status, stage tracker, intent-integrity gauge, fit-grade rings, spring View Transitions, phone and glasses surfaces, accessibility labels |
 
 ## Honesty notes for judges
 

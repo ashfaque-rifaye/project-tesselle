@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   Ban,
+  Check as CheckMark,
   CheckCircle2,
   CircleDashed,
   CircleHelp,
@@ -41,8 +42,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={show}>
       {children}
       {toast && (
-        <div className={`toast ${toast.error ? "error" : ""}`} role="status">
-          {toast.error ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+        <div key={toast.id} className={`toast ${toast.error ? "error" : ""}`} role="status">
+          <span className="ti">{toast.error ? <AlertTriangle size={15} /> : <CheckMark size={16} strokeWidth={3} />}</span>
           {toast.text}
         </div>
       )}
@@ -59,14 +60,14 @@ export function ProgressBox({ lines, busy }: { lines: string[]; busy: boolean })
         const live = busy && i === lines.length - 1;
         return (
           <div key={i} className={`progress-line ${live ? "live" : ""}`}>
-            {live ? <Loader2 className="spin" /> : <CheckCircle2 color="var(--teal)" />}
+            {live ? <Loader2 className="spin" color="var(--volt)" /> : <CheckCircle2 color="var(--green)" />}
             {l}
           </div>
         );
       })}
       {busy && !lines.length && (
         <div className="progress-line live">
-          <Loader2 className="spin" /> Starting...
+          <Loader2 className="spin" color="var(--volt)" /> Starting...
         </div>
       )}
       {busy && <div className="tiny muted">You can leave this screen; the result is saved to your project.</div>}
@@ -126,7 +127,7 @@ export const VERDICT: Record<Verdict, { label: string; tone: string; icon: React
   meets: { label: "Meets confirmed requirements", tone: "teal", icon: <CheckCircle2 size={16} color="var(--teal)" /> },
   possible_with_change: { label: "Possible with a change", tone: "amber", icon: <AlertTriangle size={16} color="var(--amber)" /> },
   not_suitable: { label: "Not suitable", tone: "red", icon: <Ban size={16} color="var(--red)" /> },
-  needs_quote: { label: "Makers who can quote", tone: "violet", icon: <CircleDashed size={16} color="var(--violet)" /> },
+  needs_quote: { label: "Makers who can quote", tone: "violet", icon: <CircleDashed size={16} color="var(--sky)" /> },
 };
 
 export function StockChip({ stock }: { stock: string }) {
@@ -183,7 +184,7 @@ export function actorLabel(actor: string): { name: string; tone: string } {
       delivery_inspector: "Delivery inspector",
       missionlock: "MissionLock",
     };
-    return { name: names[a] || a, tone: a === "missionlock_guard" ? "red" : "teal" };
+    return { name: names[a] || a, tone: a === "missionlock_guard" ? "red" : "volt" };
   }
   if (actor.startsWith("seller:")) return { name: "Seller", tone: "violet" };
   return { name: "System", tone: "muted" };

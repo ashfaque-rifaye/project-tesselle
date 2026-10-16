@@ -13,17 +13,17 @@ const browser = await chromium.launch({ args });
 const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, permissions: ["camera", "microphone"] });
 const page = await ctx.newPage();
 
-async function shot(url, name, prep) {
+async function shot(url, name, prep, wait = 3000) {
   await page.goto(base + url, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => !document.body.innerText.includes("Opening your project"), null, { timeout: 60000 }).catch(() => {});
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(wait);
   if (prep) await prep();
-  await page.screenshot({ path: path.join(img, name) });
+  await page.screenshot({ path: path.join(img, name.replace(/\.png$/, ".jpg")), type: "jpeg", quality: 88 });
   console.log("shot", name);
 }
 
 if (pid) {
-  await shot("/", "home.png");
+  await shot("/", "home.png", async () => { await page.mouse.move(820, 520, { steps: 20 }); await page.waitForTimeout(1200); }, 6000);
   await shot(`/p/${pid}/clarify`, "clarify.png");
   await shot(`/p/${pid}/routes`, "routes.png", async () => {
     await page.evaluate(() => { const c = document.querySelector(".ws-center"); const g = document.querySelectorAll(".group-head")[1]; if (c && g) c.scrollTop = g.offsetTop - 40; });

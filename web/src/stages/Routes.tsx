@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, RefreshCw, Search, Send } from "lucide-react";
 import { ago, inr, media } from "../api";
 import { Banner, CheckChip, CheckIcon, Drawer, ProgressBox, StockChip, VERDICT } from "../components/ui";
+import { FitRing } from "../components/Viz";
 import type { RouteEntry, Verdict } from "../types";
 import { brief as currentBrief, type StageCtx } from "./ctx";
 
@@ -64,7 +65,7 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
           {stale && <Banner tone="amber">These results were checked against brief v{routes.brief_version}. Your brief is now v{b?.version} - re-check before relying on them.</Banner>}
           <div className="card pad section">
             <div className="row between wrap">
-              <h3 style={{ fontFamily: "var(--display)", fontSize: 20, fontWeight: 500 }}>{routes.narrative.headline}</h3>
+              <h3 style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 500, letterSpacing: "-.03em" }}>{routes.narrative.headline}</h3>
               <span className="small muted">Checked {ago(routes.checked_at)} · {(routes.duration_ms / 1000).toFixed(1)} s</span>
             </div>
             <p className="small" style={{ color: "var(--ink-2)" }}>{routes.narrative.explanation}</p>
@@ -103,7 +104,13 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
                 <div className="offer-grid">
                   {items.map((e) => (
                     <div key={e.item_id} className={`card offer ${v === "not_suitable" ? "dim" : ""}`} onClick={() => setOpen(e)}>
-                      <img src={media(e.image_path)} alt={e.name} loading="lazy" />
+                      <div className="media">
+                        <img src={media(e.image_path)} alt={e.name} loading="lazy" />
+                        <span className="fit">
+                          <FitRing met={e.checks.filter((c) => c.result === "met").length} total={e.checks.length}
+                            tone={{ meets: "volt", possible_with_change: "amber", not_suitable: "red", needs_quote: "sky" }[v]} />
+                        </span>
+                      </div>
                       <div className="body">
                         <div className="row between" style={{ alignItems: "flex-start" }}>
                           <div className="name">{e.name}</div>

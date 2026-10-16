@@ -82,9 +82,9 @@ export default function Share() {
 
   return (
     <>
-      <header className="topbar"><Logo small /><span className="sep" /><span className="project-name">Shared to Tesselle</span></header>
+      <header className="top-float glass" style={{ maxWidth: 720 }}><Logo small /><span className="chip muted">Shared to Tesselle</span></header>
       <div className="seller-wrap" style={{ maxWidth: 720 }}>
-        <div className="row"><Glasses size={22} color="var(--teal)" /><h2>Send this capture to your agent</h2></div>
+        <div className="row"><span className="drop-ic" style={{ width: 48, height: 48 }}><Glasses size={22} /></span><h2>Send this capture to your agent</h2></div>
         {items === null ? <div className="empty"><Loader2 className="spin" /></div> : items.length === 0 ? (
           <div className="empty">Nothing was shared. On your phone, open a photo or clip (for example from the Meta AI app for Ray-Ban Meta glasses), tap Share and choose Tesselle.</div>
         ) : (

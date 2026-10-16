@@ -105,7 +105,7 @@ export async function stream(
 export const media = (path?: string | null) => (path ? `${API}/api/media/${path}` : "");
 
 export const inr = (v?: number | null) =>
-  v === null || v === undefined ? "Not yet known" : "INR " + Math.round(v).toLocaleString("en-IN");
+  v === null || v === undefined ? "Not yet known" : "₹" + Math.round(v).toLocaleString("en-IN");
 
 export function ago(iso?: string): string {
   if (!iso) return "";

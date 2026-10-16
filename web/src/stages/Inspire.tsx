@@ -170,7 +170,7 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
         <div className="card pad section">
           {mode === "glasses" ? (
             <div className="section">
-              <div className="row"><Glasses size={22} color="var(--teal)" /><h3>Capture from smart glasses</h3></div>
+              <div className="row"><span className="drop-ic" style={{ width: 44, height: 44 }}><Glasses size={20} /></span><h3>Capture from smart glasses</h3></div>
               <p className="small" style={{ color: "var(--ink-2)", lineHeight: 1.6 }}>
                 Photos and clips from Ray-Ban Meta glasses sync to your phone. Install Tesselle on your phone (Add to Home Screen), then in the
                 Meta AI app or your gallery choose <b>Share → Tesselle</b> - the capture goes straight to this agent.
@@ -181,7 +181,7 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
             </div>
           ) : mode === "imagine" && !item ? (
             <div className="section">
-              <div className="row"><Sparkles size={20} color="var(--teal)" /><h3>Imagine it with Gemini</h3></div>
+              <div className="row"><span className="drop-ic" style={{ width: 44, height: 44 }}><Sparkles size={20} /></span><h3>Imagine it with Gemini</h3></div>
               <textarea className="textarea" style={{ minHeight: 120 }} placeholder="e.g. a low bamboo desk organiser with a phone slot and a tray for an A5 notebook"
                 value={imaginePrompt} onChange={(e) => setImaginePrompt(e.target.value)} />
               <button className="btn primary" onClick={imagine} disabled={imagining || !!busy}>
@@ -199,7 +199,7 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
                 </>
               ) : (
                 <>
-                  {mode === "space" ? <Camera size={30} color="var(--teal)" /> : <ImagePlus size={30} color="var(--teal)" />}
+                  <span className="drop-ic">{mode === "space" ? <Camera size={26} /> : <ImagePlus size={26} />}</span>
                   <div className="small">{mode === "space" ? "Photograph or film the space it must fit" : "Add a photo or a short video of something you like"}</div>
                   <div className="row">
                     <button className="btn sm teal" onClick={() => setCamera(true)}><Camera size={14} /> Open camera</button>

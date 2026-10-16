@@ -44,7 +44,7 @@ or shortcut can silently change a requirement the customer said must stay the sa
 | **Multimodal intake** | ADK `LlmAgent` on **Gemini 3.8 Flash** with a typed output schema; inputs: text, voice (audio), photos, **video**, generated images. Photo-derived sizes are always `needs_checking`. |
 | **MissionLock guard** | `app/missionlock.py` — deterministic requirement checks, fit verdicts (*meets / possible with a change / not suitable*), quote deviations, readiness and approval gates. LLMs only *explain* verdicts. |
 | **Route explorer** | **ADK 2 graph `Workflow`**: `prepare → (catalog_scout ‖ sourcing_scout ‖ maker_scout) → JoinNode → analyst`. Catalog scout uses **Firestore vector search** over **Gemini embeddings**. |
-| **Creative studio** | Gemini (art director agent) writes the prompt; **Gemini image generation** renders/edits concepts, with click-to-pin visual prompting (a teal ring drawn onto the reference image). Flags visual edits that would affect the brief. |
+| **Creative studio** | Gemini (art director agent) writes the prompt; **Gemini image generation** renders/edits concepts, with click-to-pin visual prompting (a ring drawn onto the reference image). Flags visual edits that would affect the brief. |
 | **Maker negotiation** | AI-simulated fictional maker agent with a capability profile; quotes are tied to a brief version; a **deviation explainer** agent writes decision cards. |
 | **Concierge** | Conversational MissionLock agent with function tools (edit requirements, budget, answer questions, refine concept, explore routes, remember preferences) — the same guarded services as the UI buttons. |
 | **Memory** | **Agent Platform Sessions** (per-project conversation across devices) and **Agent Platform Memory Bank** (durable preferences such as "I rent — no drilling"), via `PreloadMemoryTool`. |
@@ -52,6 +52,23 @@ or shortcut can silently change a requirement the customer said must stay the sa
 | **Delivery inspector** | Gemini vision compares the delivery photo with the approved checklist; says what a photo cannot prove. |
 | **Recap** | Recap agent + Gemini TTS for "where you left off" on the phone surface. |
 | **Evidence trace** | Every agent step is logged with model, latency and tokens in the in-app *Evidence & agent trace*; ADK OpenTelemetry spans go to **Cloud Trace**. |
+
+## Experience design
+
+A liquid-glass design system ("Mist & Volt"), inspired by iOS/macOS materials: frosted glass surfaces over a misty,
+Gemini-generated forest-studio scene, one volt accent for the next action, and system colours for status (green
+confirmed, amber needs you, red blocked — always with text and an icon).
+
+- **Cinematic home** — the hero scene is generated with Gemini 3.1 Flash Image; a faceted **Three.js glass gem**
+  (real transmission/refraction) floats in the fog, and a live *mission card* replays the demo story like a
+  shipment tracker.
+- **Tracked, not trusted** — a lit stage tracker, a Dynamic-Island-style status pill that expands while agents
+  work (with an edge glow), an **intent-integrity gauge** (must-haves locked / at risk), fit-grade rings on every
+  route, and big-number quote stats.
+- **Fluid motion** — spring easing, View Transitions between stages, a glass sheen that follows the pointer, and a
+  floating composer dock that raises the MissionLock conversation or the evidence trace as a sheet.
+- **One system everywhere** — workspace, phone (iPhone-style surface with a tab bar), glasses HUD, seller and share
+  pages, the pitch deck and the demo video all use the same palette and materials.
 
 ## Google Cloud stack
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Loader2, Monitor, ShieldCheck, Volume2 } from "lucide-react";
+import { Camera, Loader2, Lock, Mic, Monitor, ShieldCheck, Signal, Volume2, Wifi } from "lucide-react";
 import { get, media } from "../api";
 import { Banner, Logo, ProgressBox } from "../components/ui";
 import { DeliveryCheck } from "../stages/Accept";
@@ -45,7 +45,7 @@ export default function Phone() {
     <div className="phone-wrap">
       <div className="phone" aria-label="Phone surface">
         <div className="phone-screen">
-          <div className="phone-notch"><span /></div>
+          <div className="phone-notch"><b>9:41</b><span /><b className="row" style={{ gap: 5 }}><Signal size={14} /><Wifi size={14} /></b></div>
           <div className="phone-body">
             <div className="row between">
               <Logo small />
@@ -54,7 +54,7 @@ export default function Phone() {
             {remoteChange && <span className="chip amber">Updated on another device</span>}
             <div>
               <div className="tiny muted">Project</div>
-              <div style={{ fontFamily: "var(--display)", fontSize: 21 }}>{state.project.title}</div>
+              <div style={{ fontFamily: "var(--display)", fontSize: 28, letterSpacing: "-.035em", lineHeight: 1.1 }}>{state.project.title}</div>
             </div>
 
             <div className="card pad col">
@@ -92,7 +92,7 @@ export default function Phone() {
             {state.order && (nd.stage === "accept") && <DeliveryCheck ctx={ctx} compact />}
 
             {!dev && nd.stage !== "approve" && nd.stage !== "accept" && nd.title !== "Review the sample" && (
-              <div className="next-card">
+              <div className="next-card frost">
                 <div className="k">Next</div>
                 <div className="t">{nd.title}</div>
                 <div className="d">{nd.detail}</div>
@@ -104,17 +104,23 @@ export default function Phone() {
               <div className="card pad col">
                 <h4>Must stay the same</h4>
                 {b.requirements.filter((r) => r.kind === "must").map((r) => (
-                  <div key={r.id} className="row small" style={{ gap: 8 }}><ShieldCheck size={14} /> {r.label}</div>
+                  <div key={r.id} className="row small" style={{ gap: 10 }}><span className="lock-ic"><Lock /></span> {r.label}</div>
                 ))}
               </div>
             )}
             <a className="btn" href={`/p/${pid}`}><Monitor size={15} /> Open this project on desktop</a>
             <div className="tiny muted" style={{ textAlign: "center" }}>rev {rev} · same project, same pending decision</div>
           </div>
+          <div className="tabbar glass">
+            <span className="on"><ShieldCheck size={20} /></span>
+            <a href={`/g/${pid}`} aria-label="Glasses capture"><Camera size={20} /></a>
+            <span><Mic size={20} /></span>
+            <a href={`/p/${pid}`} aria-label="Open on desktop"><Monitor size={20} /></a>
+          </div>
         </div>
       </div>
       <div className="phone-aside">
-        <span className="chip violet">Phone surface · simulated on desktop</span>
+        <span className="chip violet" style={{ alignSelf: "flex-start" }}>Phone surface · simulated on desktop</span>
         <h2>One clear next action.</h2>
         <p className="muted">The phone opens the exact pending decision with a short recap - spoken aloud with Gemini TTS if you like. Decisions made here appear on the desktop within seconds, without duplicate orders or conflicting approvals.</p>
         <p className="small muted">On a real phone this page fills the screen. Scan the QR code from the desktop's "Continue on my phone".</p>

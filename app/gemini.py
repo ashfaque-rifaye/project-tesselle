@@ -157,6 +157,7 @@ async def generate_image(
     purpose: str,
     reference_images: list[tuple[bytes, str]] | None = None,
     aspect_ratio: str = "4:3",
+    image_size: str | None = None,
 ) -> tuple[bytes, str, CallStats]:
     """Generate or edit an image with Gemini image generation. Returns (bytes, mime, stats)."""
     _guard("image")
@@ -173,7 +174,7 @@ async def generate_image(
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE"],
                     labels=labels(purpose),
-                    image_config=types.ImageConfig(aspect_ratio=aspect_ratio),
+                    image_config=types.ImageConfig(aspect_ratio=aspect_ratio, image_size=image_size),
                 ),
             )
         except genai_errors.APIError as e:

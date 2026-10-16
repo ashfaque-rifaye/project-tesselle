@@ -1,6 +1,7 @@
 import { Check, FastForward, PackageCheck } from "lucide-react";
 import { media } from "../api";
 import { Banner, ProgressBox } from "../components/ui";
+import { RouteBar } from "../components/Viz";
 import type { StageCtx } from "./ctx";
 
 export default function Fulfil({ ctx }: { ctx: StageCtx }) {
@@ -23,6 +24,10 @@ export default function Fulfil({ ctx }: { ctx: StageCtx }) {
           <p>Only relevant stages, estimates marked as estimates, and who must act next. A sample rejection returns to revision - it never authorises production.</p>
         </div>
         <span className="chip amber">Sandbox order</span>
+      </div>
+      <div className="card pad">
+        <RouteBar from="Approved" to="Accepted" value={order.milestones.filter((m) => m.state === "done").length / Math.max(1, order.milestones.length - 1)}
+          note={`${order.seller_name} · ${current ? `next: ${current.label}` : "complete"}`} />
       </div>
       <Banner tone="ink">Milestones here are simulated for the demonstration - not real logistics.</Banner>
 

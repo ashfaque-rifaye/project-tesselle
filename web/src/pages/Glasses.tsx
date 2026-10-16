@@ -123,9 +123,9 @@ export default function Glasses() {
   return (
     <div className="glasses">
       {camError ? (
-        <div className="feed" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "radial-gradient(circle at 50% 40%, #0b2a2a, #000)" }}>
-          <div style={{ textAlign: "center", maxWidth: 420, padding: 20 }} className="col">
-            <GlassesIcon size={40} color="var(--teal)" style={{ margin: "0 auto" }} />
+        <div className="feed" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "url(/media/hero-sm.jpg) center / cover" }}>
+          <div style={{ textAlign: "center", maxWidth: 420, padding: 22, borderRadius: 28 }} className="col glass">
+            <GlassesIcon size={40} color="var(--volt)" style={{ margin: "0 auto" }} />
             <div className="small">No camera here. Import a photo or clip from your glasses (synced to your phone), or open this page on your phone.</div>
           </div>
         </div>
@@ -138,21 +138,21 @@ export default function Glasses() {
         <div className="reticle"><i /><i /><i /><i />{busy && <div className="scanline" />}</div>
       </div>
       <div className="hud-top">
-        <span className="row" style={{ gap: 8 }}><GlassesIcon size={16} color="var(--teal)" /> Tesselle · glasses mode</span>
+        <span className="who glass"><GlassesIcon size={16} color="var(--volt)" /> Tesselle · glasses mode</span>
         <span className="row" style={{ gap: 8 }}>
           {b && <span className="chip teal">Brief v{b.version}</span>}
-          <a className="hud-btn" style={{ width: 38, height: 38 }} href={`/p/${pid}`} aria-label="Open on desktop"><Monitor size={16} /></a>
-          <a className="hud-btn" style={{ width: 38, height: 38 }} href="/" aria-label="Exit"><X size={16} /></a>
+          <a className="hud-btn" style={{ width: 40, height: 40 }} href={`/p/${pid}`} aria-label="Open on desktop"><Monitor size={16} /></a>
+          <a className="hud-btn" style={{ width: 40, height: 40 }} href="/" aria-label="Exit"><X size={16} /></a>
         </span>
       </div>
-      <div className="hud-bubble" aria-live="polite">
-        <div className="mono" style={{ fontSize: 10.5, letterSpacing: ".14em", color: "var(--teal)", marginBottom: 6 }}>
+      <div className="hud-bubble glass" aria-live="polite">
+        <div className="k">
           {busy ? <><Loader2 size={11} className="spin" style={{ verticalAlign: -1 }} /> MISSIONLOCK IS LOOKING</> : reply ? "MISSIONLOCK" : "READY"}
         </div>
         <div>{reply || status}</div>
         {reply && <div className="tiny muted" style={{ marginTop: 6 }}>{status}</div>}
       </div>
-      <div className="hud-controls">
+      <div className="hud-controls glass">
         <button className={`hud-btn ${listening ? "on" : ""}`} onClick={() => (listening ? toggleVoice() : voice && !busy ? send(null, null) : toggleVoice())}
           aria-label={listening ? "Stop listening" : "Ask by voice"} disabled={busy}>
           {listening ? <MicOff size={20} /> : <Mic size={20} />}
