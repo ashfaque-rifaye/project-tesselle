@@ -1298,6 +1298,9 @@ async def choose(pid: str, *, entry_id: Optional[str] = None, quote_id: Optional
                  acknowledgements: list[str] | None = None, idempotency_key: str = "") -> dict[str, Any]:
     """One-step pick + order for a single option (used by the guided demo and the assistant)."""
     acknowledgements = acknowledgements or []
+    existing = await store.get(pid, "orders", "ord_" + _short(entry_id or quote_id or ""))
+    if existing and existing.get("status") != "cancelled":
+        return existing  # choosing the same option again is idempotent
     brief = await _require_brief(pid)
     if not brief.confirmed:
         raise ServiceError("Not yet - a check needs your attention.", 409, ["Confirm your brief first."])
