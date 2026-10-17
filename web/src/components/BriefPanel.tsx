@@ -1,10 +1,58 @@
-import { useState } from "react";
-import { ArrowDown, ArrowUp, Calendar, Check, CircleHelp, History, Lock, NotebookPen, Pencil, Plus, RefreshCw, Share2, Trash2, Undo2, Wallet, X } from "lucide-react";
-import { ago, inr } from "../api";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, Calendar, Camera, Check, CircleHelp, History, Lock, NotebookPen, Pencil, Plus, RefreshCw, Share2, Trash2, Undo2, Wallet, X } from "lucide-react";
+import { ago, inr, media } from "../api";
 import type { StageCtx } from "../stages/ctx";
 import type { Brief, Requirement } from "../types";
+import { FacetIcon, ROUTE_LABEL } from "./icons";
 import LocationField from "./LocationField";
 import MicButton from "./MicButton";
+
+/** Ask the shell to open the capture sheet (QR code to the phone, upload, webcam). */
+export const openCapture = (kind = "space", what = "") => window.dispatchEvent(new CustomEvent("tsl:capture", { detail: { kind, what } }));
+
+/** Requirements that just changed (from any device or the voice agent) glow for a moment, so you can
+ *  see what moved without the screen jumping anywhere. */
+function useFresh(b?: Brief): Set<string> {
+  const prev = useRef<Map<string, string> | null>(null);
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!b) return;
+    const now = new Map(b.requirements.map((r) => [r.id, `${r.label}|${r.kind}|${r.status}`]));
+    now.set("_budget", JSON.stringify(b.budget));
+    now.set("_place", JSON.stringify(b.delivery));
+    if (prev.current) {
+      const changed = [...now].filter(([k, v]) => prev.current!.get(k) !== v).map(([k]) => k);
+      if (changed.length) {
+        setFresh(new Set(changed));
+        const t = setTimeout(() => setFresh(new Set()), 2600);
+        prev.current = now;
+        return () => clearTimeout(t);
+      }
+    }
+    prev.current = now;
+  }, [b]);
+  return fresh;
+}
+
+/** A key fact the layout says matters for this purchase; a missing one can be filled in place. */
+function FacetTile({ icon, label, value, ask, fresh, onAnswer, busy }: { icon: string; label: string; value?: string | null; ask?: string | null;
+  fresh: boolean; onAnswer: (v: string) => void; busy: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState("");
+  return (
+    <div className={`facet ${value ? "" : "missing"} ${fresh ? "flash" : ""}`}>
+      <span className="facet-ic"><FacetIcon name={icon} size={13} /></span>
+      <span className="facet-k">{label}</span>
+      {value ? <span className="facet-v">{value}</span> : open ? (
+        <span className="row" style={{ gap: 4 }}>
+          <input className="input sm" autoFocus value={v} placeholder={ask || label} onChange={(e) => setV(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && v.trim() && (onAnswer(v.trim()), setOpen(false))} />
+          <button className="btn sm icon-btn" disabled={!v.trim() || busy} onClick={() => { onAnswer(v.trim()); setOpen(false); }} aria-label="Save"><Check size={13} /></button>
+        </span>
+      ) : <button className="facet-add" onClick={() => setOpen(true)}>{ask || "Add"}</button>}
+    </div>
+  );
+}
 
 type Change = { kind: "added" | "changed" | "removed" | "budget" | "place"; id?: string; before?: string; after?: string };
 
@@ -44,6 +92,11 @@ export default function BriefPanel({ ctx }: { ctx: StageCtx }) {
   const [adding, setAdding] = useState<"must" | "flexible" | null>(null);
   const [newText, setNewText] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const fresh = useFresh(b);
+  const layout = state.project.layout || null;
+  const route = state.project.plan_route || layout?.route || null;
+  const photos = state.project.inspiration?.photos || [];
+  const spacePhoto = state.project.inspiration?.image_path && !state.project.inspiration?.generated_image ? state.project.inspiration.image_path : null;
 
   if (!b) {
     return (
@@ -74,6 +127,30 @@ export default function BriefPanel({ ctx }: { ctx: StageCtx }) {
     setNote("");
   }
 
+  const mustRow = (r: Requirement): ReactNode => (
+    <div key={r.id} className={`req must ${b.changed_ids.includes(r.id) ? "changed" : ""} ${fresh.has(r.id) ? "flash" : ""}`}>
+      <span className={`lock-ic ${r.status === "needs_checking" ? "warn" : ""}`}>{r.status === "needs_checking" ? <CircleHelp /> : <Lock />}</span>
+      <div className="grow">
+        <div>{r.label}</div>
+        <div className="meta">{r.status === "needs_checking" ? "From your photo - measure to confirm" : r.note ? `"${r.note}"` : "Kept unless you agree to change it"}</div>
+      </div>
+      <span className="req-actions">
+        {r.status === "needs_checking" && (
+          <button title="I measured it - confirm" onClick={() => reqs((all) => all.map((x) => (x.id === r.id ? { ...x, status: "confirmed", source: "customer" } : x)), `Confirmed ${r.label}`)}><Check size={13} /></button>
+        )}
+        <button title="Make it a nice-to-have" onClick={() => reqs((all) => all.map((x) => (x.id === r.id ? { ...x, kind: "flexible" } : x)), `${r.label} is now a nice-to-have`)}><ArrowDown size={13} /></button>
+        <button title="Remove" onClick={() => reqs((all) => all.filter((x) => x.id !== r.id), `Removed ${r.label}`)}><X size={13} /></button>
+      </span>
+    </div>
+  );
+  const flexChip = (r: Requirement): ReactNode => (
+    <span key={r.id} className={`chip flexchip ${b.changed_ids.includes(r.id) ? "sky" : ""} ${fresh.has(r.id) ? "flash" : ""}`}>
+      {r.label}
+      <button title="Make it a must-have" onClick={() => reqs((all) => all.map((x) => (x.id === r.id ? { ...x, kind: "must" } : x)), `${r.label} is now a must-have`)}><ArrowUp size={12} /></button>
+      <button title="Remove" onClick={() => reqs((all) => all.filter((x) => x.id !== r.id), `Removed ${r.label}`)}><X size={12} /></button>
+    </span>
+  );
+
   async function add() {
     if (!newText.trim() || !adding) return;
     await ctx.act("Adding to your brief", `/api/projects/${pid}/brief/requirement`, { text: newText.trim(), kind: adding }, "Added to your brief");
@@ -98,6 +175,13 @@ export default function BriefPanel({ ctx }: { ctx: StageCtx }) {
           <button className="title editable" onClick={() => { setTitle(b.title); setEditTitle(true); }}>{b.title} <Pencil size={13} /></button>
         )}
         {b.purpose && <div className="small muted clamp2">{b.purpose}</div>}
+        {layout && (
+          <div className="kind-row" title={layout.route_reason}>
+            <span className="kind-ic"><FacetIcon name={layout.icon} size={14} /></span>
+            <span className="kind-t">{layout.kind_label}</span>
+            {route && <span className="chip muted">{ROUTE_LABEL[route]}</span>}
+          </div>
+        )}
       </div>
 
       {changes.length > 0 && (
@@ -123,8 +207,30 @@ export default function BriefPanel({ ctx }: { ctx: StageCtx }) {
         </button>
       )}
 
+      {layout && layout.facets.length > 0 && (
+        <div className="facet-grid" aria-label="Key facts">
+          {layout.facets.map((f) => (
+            <FacetTile key={f.label} icon={f.icon} label={f.label} value={f.value} ask={f.ask} busy={!!busy}
+              fresh={!!f.requirement_id && fresh.has(f.requirement_id)}
+              onAnswer={(v) => ctx.act("Adding to your brief", `/api/projects/${pid}/brief/requirement`, { text: `${f.label}: ${v}`, kind: "must" }, `${f.label} saved`)} />
+          ))}
+        </div>
+      )}
+
+      {(photos.length > 0 || spacePhoto || layout?.photo_helps) && (
+        <div className="photo-strip">
+          {(photos.length ? photos.slice(-4).map((p) => p.path) : spacePhoto ? [spacePhoto] : []).map((p) => (
+            <img key={p} src={media(p)} alt="" loading="lazy" />
+          ))}
+          <button className="photo-add" onClick={() => openCapture("space", layout?.photo_prompt || "")} title="Add a photo from your phone, glasses or camera">
+            <Camera size={15} /><span>{photos.length || spacePhoto ? "Add" : layout?.photo_prompt ? "Add a photo" : "Photo"}</span>
+          </button>
+          {!photos.length && !spacePhoto && layout?.photo_prompt && <span className="tiny muted photo-hint">{layout.photo_prompt}</span>}
+        </div>
+      )}
+
       <div className="facts">
-        <div className="fact">
+        <div className={`fact ${fresh.has("_budget") ? "flash" : ""}`}>
           <span className="fk"><Wallet size={13} /> Budget</span>
           {editBudget ? (
             <span className="row" style={{ gap: 4 }}>
@@ -143,7 +249,7 @@ export default function BriefPanel({ ctx }: { ctx: StageCtx }) {
             </button>
           )}
         </div>
-        <div className="fact">
+        <div className={`fact ${fresh.has("_place") ? "flash" : ""}`}>
           <span className="fk">📍 Deliver to</span>
           {editPlace ? (
             <div className="col" style={{ gap: 6, width: "100%" }}>
@@ -156,35 +262,51 @@ export default function BriefPanel({ ctx }: { ctx: StageCtx }) {
             </button>
           )}
         </div>
-        <div className="fact">
-          <span className="fk"><Calendar size={13} /> Needed by</span>
-          <input className="date-input" type="date" value={b.delivery.desired_by || ""} aria-label="Needed by"
-            onChange={(e) => save({ delivery: { ...b.delivery, desired_by: e.target.value || null } }, "Deadline changed")} />
-        </div>
+        {(!layout || layout.show_deadline || b.delivery.desired_by) && (
+          <div className="fact">
+            <span className="fk"><Calendar size={13} /> Needed by</span>
+            <input className="date-input" type="date" value={b.delivery.desired_by || ""} aria-label="Needed by"
+              onChange={(e) => save({ delivery: { ...b.delivery, desired_by: e.target.value || null } }, "Deadline changed")} />
+          </div>
+        )}
       </div>
 
+      {layout && layout.sections.length > 0 ? (
+        <>
+          {layout.sections.map((sec, i) => {
+            const rs = sec.requirement_ids.map((id) => b.requirements.find((r) => r.id === id)).filter(Boolean) as Requirement[];
+            const extra = i === layout.sections.length - 1 ? b.requirements.filter((r) => !layout.sections.some((s) => s.requirement_ids.includes(r.id))) : [];
+            const all = [...rs, ...extra];
+            if (!all.length) return null;
+            return (
+              <div className="col" key={sec.title}>
+                <div className="row between" style={{ padding: "0 4px" }}>
+                  <h4>{sec.title}</h4>
+                  {i === 0 && <button className="chip clickable" onClick={() => setAdding(adding === "must" ? null : "must")}><Plus /> Must-have</button>}
+                  {i === 1 && <button className="chip clickable" onClick={() => setAdding(adding === "flexible" ? null : "flexible")}><Plus /> Nice to have</button>}
+                </div>
+                <div className="req-list">
+                  {all.filter((r) => r.kind === "must").map((r) => mustRow(r))}
+                </div>
+                {all.some((r) => r.kind !== "must") && <div className="flex-chips">{all.filter((r) => r.kind !== "must").map((r) => flexChip(r))}</div>}
+              </div>
+            );
+          })}
+          {layout.sections.length === 1 && (
+            <div className="row" style={{ padding: "0 4px", gap: 6 }}>
+              <button className="chip clickable" onClick={() => setAdding(adding === "flexible" ? null : "flexible")}><Plus /> Nice to have</button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
       <div className="col">
         <div className="row between" style={{ padding: "0 4px" }}>
           <h4>Must-haves</h4>
           <button className="chip clickable" onClick={() => setAdding(adding === "must" ? null : "must")}><Plus /> Add</button>
         </div>
         <div className="req-list">
-          {musts.map((r) => (
-            <div key={r.id} className={`req must ${b.changed_ids.includes(r.id) ? "changed" : ""}`}>
-              <span className={`lock-ic ${r.status === "needs_checking" ? "warn" : ""}`}>{r.status === "needs_checking" ? <CircleHelp /> : <Lock />}</span>
-              <div className="grow">
-                <div>{r.label}</div>
-                <div className="meta">{r.status === "needs_checking" ? "From your photo - measure to confirm" : r.note ? `"${r.note}"` : "Kept unless you agree to change it"}</div>
-              </div>
-              <span className="req-actions">
-                {r.status === "needs_checking" && (
-                  <button title="I measured it - confirm" onClick={() => reqs((all) => all.map((x) => (x.id === r.id ? { ...x, status: "confirmed", source: "customer" } : x)), `Confirmed ${r.label}`)}><Check size={13} /></button>
-                )}
-                <button title="Make it a nice-to-have" onClick={() => reqs((all) => all.map((x) => (x.id === r.id ? { ...x, kind: "flexible" } : x)), `${r.label} is now a nice-to-have`)}><ArrowDown size={13} /></button>
-                <button title="Remove" onClick={() => reqs((all) => all.filter((x) => x.id !== r.id), `Removed ${r.label}`)}><X size={13} /></button>
-              </span>
-            </div>
-          ))}
+          {musts.map((r) => mustRow(r))}
           {!musts.length && <div className="small muted">No must-haves yet.</div>}
         </div>
       </div>
@@ -195,17 +317,12 @@ export default function BriefPanel({ ctx }: { ctx: StageCtx }) {
           <button className="chip clickable" onClick={() => setAdding(adding === "flexible" ? null : "flexible")}><Plus /> Add</button>
         </div>
         <div className="flex-chips">
-          {flex.map((r) => (
-            <span key={r.id} className={`chip flexchip ${b.changed_ids.includes(r.id) ? "sky" : ""}`}>
-              {r.label}
-              <button title="Make it a must-have" onClick={() => reqs((all) => all.map((x) => (x.id === r.id ? { ...x, kind: "must" } : x)), `${r.label} is now a must-have`)}><ArrowUp size={12} /></button>
-              <button title="Remove" onClick={() => reqs((all) => all.filter((x) => x.id !== r.id), `Removed ${r.label}`)}><X size={12} /></button>
-            </span>
-          ))}
+          {flex.map((r) => flexChip(r))}
           {!flex.length && <span className="small muted">None</span>}
         </div>
       </div>
-
+        </>
+      )}
       {adding && (
         <div className="add-req">
           <input className="input sm" autoFocus placeholder={adding === "must" ? "e.g. Max width 30 cm" : "e.g. Matte finish"} value={newText}

@@ -132,7 +132,7 @@ async def _locate(image: bytes, mime: str, names: list[str]) -> list[Box]:
 async def shop_the_look(pid: str, entries: list[dict[str, Any]], space: Optional[tuple[bytes, str]], fetch) -> dict[str, Any]:
     """One picture of real options together - in the customer's space if they shared one - with hotspots."""
     imgs = await asyncio.gather(*(fetch(e["image_url"]) for e in entries))
-    picked = [(e, im) for e, im in zip(entries, imgs) if im][:4]
+    picked = [(e, im) for e, im in zip(entries, imgs) if im][:5]
     if not picked:
         raise RuntimeError("None of these listings has a product photo Tesselle could read.")
     refs: list[tuple[bytes, str]] = []
@@ -158,7 +158,7 @@ async def shop_the_look(pid: str, entries: list[dict[str, Any]], space: Optional
         x, y = _centre(b.box_2d) if b else (None, None)
         items.append({"entry_id": e["item_id"], "name": e["name"], "seller_name": e["seller_name"], "seller_id": e.get("seller_id"),
                       "price_inr": e.get("price_inr"), "url": e.get("url"), "image_url": e.get("image_url"),
-                      "x": x, "y": y, "box": b.box_2d if b else None, "verdict": e.get("verdict")})
+                      "x": x, "y": y, "box": b.box_2d if b else None, "verdict": e.get("verdict"), "complement": bool(e.get("complement"))})
     look = {"id": lid, "kind": "look", "image_path": path, "items": items, "in_space": bool(space), "created_at": now_iso(),
             "note": "Made by Gemini from the real product photos - check exact sizes on each store page."}
     await store.put(pid, "looks", lid, look)

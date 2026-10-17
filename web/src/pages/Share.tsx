@@ -8,7 +8,7 @@ import type { Line, NextDecision, Project, ProjectState } from "../types";
 interface Shared { blob: Blob; url: string; name: string; video: boolean }
 interface Card { project: Project; next_decision: NextDecision }
 
-/** Landing page for the PWA share target: photos/clips shared from the phone (e.g. Ray-Ban Meta
+/** Landing page for the PWA share target: photos/clips shared from the phone (e.g. MetaGlass
  *  captures in the Meta AI app) are handed to the agent - as a new project or into an existing one. */
 export default function Share() {
   const nav = useNavigate();
@@ -86,7 +86,7 @@ export default function Share() {
       <div className="seller-wrap" style={{ maxWidth: 720 }}>
         <div className="row"><span className="drop-ic" style={{ width: 48, height: 48 }}><Glasses size={22} /></span><h2>Send this capture to your agent</h2></div>
         {items === null ? <div className="empty"><Loader2 className="spin" /></div> : items.length === 0 ? (
-          <div className="empty">Nothing was shared. On your phone, open a photo or clip (for example from the Meta AI app for Ray-Ban Meta glasses), tap Share and choose Tesselle.</div>
+          <div className="empty">Nothing was shared. On your phone, open a photo or clip (for example from the Meta AI app for MetaGlass), tap Share and choose Tesselle.</div>
         ) : (
           <div className="card pad section">
             {items[0].video ? <video src={items[0].url} controls playsInline style={{ width: "100%", borderRadius: 12 }} /> : <img src={items[0].url} alt="Shared capture" style={{ borderRadius: 12 }} />}

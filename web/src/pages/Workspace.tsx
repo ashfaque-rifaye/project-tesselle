@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Activity, Check, HelpCircle, Link2, Loader2, Lock, PanelLeftClose, PanelLeftOpen, PlayCircle, RefreshCw, Smartphone } from "lucide-react";
-import { ago, deviceId, post } from "../api";
+import { ago, deviceId } from "../api";
+import CaptureSheet from "../components/CaptureSheet";
+import { scrollFraction, scrollToFraction, syncView } from "../sync";
 import ActivityDrawer from "../components/ActivityDrawer";
 import BriefPanel from "../components/BriefPanel";
 import Island, { EdgeGlow } from "../components/Island";
@@ -58,9 +60,13 @@ export default function Workspace() {
   const [tip, setTip] = useState<StepInfo | null>(null);
   const [follow, setFollow] = useState(() => {
     if (params.get("follow") === "1") return true;
-    try { const v = localStorage.getItem("tsl.follow"); return v === null ? isPhone() : v === "1"; } catch { return isPhone(); }
+    try { return localStorage.getItem("tsl.follow") !== "0"; } catch { return true; }
   });
   const lastNav = useRef<string>(new Date().toISOString());
+  const applying = useRef(0);
+  const userAt = useRef(0);
+  const resumed = useRef(false);
+  const [capture, setCapture] = useState<{ kind: string; what: string } | null>(null);
 
   const setPrimary = useCallback((p: Primary | null) => {
     primaryClick.current = p?.onClick || null;
@@ -91,20 +97,60 @@ export default function Workspace() {
     return () => { window.removeEventListener("tsl:activity", h); window.removeEventListener("tsl:pilot", p); };
   }, []);
 
-  // Tell the other devices which step is open here (they mirror it in follow mode).
+  // Opening a project continues where you left off - on this device or another one.
+  useEffect(() => {
+    if (!state || !pid || resumed.current) return;
+    resumed.current = true;
+    const v = state.project.view;
+    if (!stage && v?.stage && v.stage !== view) go$(`/p/${pid}/${v.stage}`, { replace: true });
+    if (v?.scroll) setTimeout(() => { applying.current = Date.now(); scrollToFraction(v.scroll!); }, 700);
+  }, [!!state]); // eslint-disable-line
+  // Tell the other devices which step is open here and how far it is scrolled (they mirror it).
   useEffect(() => {
     if (!pid || !state) return;
     lastNav.current = new Date().toISOString();
-    const t = setTimeout(() => post(`/api/projects/${pid}/view`, { stage: view, device: deviceId() }).catch(() => {}), 300);
-    return () => clearTimeout(t);
+    syncView(pid, { stage: view, scroll: 0 }, 300);
   }, [pid, view, !!state]); // eslint-disable-line
-  // Follow mode: when another device opens a step, open it here too.
+  useEffect(() => {
+    if (!pid) return;
+    const mark = () => { userAt.current = Date.now(); };
+    const onScroll = () => {
+      if (Date.now() - applying.current < 1200) return;
+      syncView(pid, { scroll: scrollFraction() }, 450);
+    };
+    const opts = { passive: true, capture: true } as AddEventListenerOptions;
+    window.addEventListener("wheel", mark, opts);
+    window.addEventListener("touchmove", mark, opts);
+    window.addEventListener("keydown", mark, opts);
+    window.addEventListener("scroll", onScroll, opts);
+    return () => {
+      window.removeEventListener("wheel", mark, opts);
+      window.removeEventListener("touchmove", mark, opts);
+      window.removeEventListener("keydown", mark, opts);
+      window.removeEventListener("scroll", onScroll, opts);
+    };
+  }, [pid]);
+  // Follow mode: when another device opens a step or scrolls, do the same here.
   useEffect(() => {
     const v = remote.view;
-    if (!follow || !v || !pid || v.device === deviceId() || v.stage === view) return;
-    if (v.at <= lastNav.current) return;
-    go$(`/p/${pid}/${v.stage}${params.get("follow") ? "?follow=1" : ""}`);
+    if (!follow || !v || !pid || v.device === deviceId() || v.at <= lastNav.current) return;
+    if (v.stage !== view) {
+      lastNav.current = v.at;
+      go$(`/p/${pid}/${v.stage}${params.get("follow") ? "?follow=1" : ""}`);
+      if (v.scroll) setTimeout(() => { applying.current = Date.now(); scrollToFraction(v.scroll!); }, 600);
+      return;
+    }
+    if (typeof v.scroll === "number" && Date.now() - userAt.current > 1500 && Math.abs(scrollFraction() - v.scroll) > 0.02) {
+      applying.current = Date.now();
+      scrollToFraction(v.scroll);
+    }
   }, [remote.view?.at, follow]); // eslint-disable-line
+  // The voice agent (or any panel) asks for a photo: open the capture sheet.
+  useEffect(() => {
+    const h = (e: Event) => setCapture((e as CustomEvent<{ kind: string; what: string }>).detail || { kind: "space", what: "" });
+    window.addEventListener("tsl:capture", h);
+    return () => window.removeEventListener("tsl:capture", h);
+  }, []);
 
   if (error) return <Loading><div className="small muted" style={{ textAlign: "center" }}>{error}</div><a className="btn" href="/">Back to projects</a></Loading>;
   if (!state || !pid) return <Loading><div className="row small muted"><Loader2 size={16} className="spin" color="var(--volt)" /> Opening your project...</div></Loading>;
@@ -125,7 +171,9 @@ export default function Workspace() {
   const pct = Math.round((doneN / steps.length) * 100);
   const fill = Math.max(0, steps.findIndex((x) => x.stage === state.next_decision.stage)) / Math.max(1, steps.length - 1);
   const back = prevStep(steps, view);
-  const otherLive = !busy && remote.live && remote.live.message ? { agent: remote.live.agent || remote.live.label, message: remote.live.message } : null;
+  const otherBusy = remote.view && remote.view.device !== deviceId() && remote.view.busy
+    ? { agent: remote.view.kind === "phone" ? "On your phone" : remote.view.kind === "glasses" ? "On your glasses" : "On your other device", message: remote.view.busy } : null;
+  const otherLive = busy ? null : remote.live && remote.live.message ? { agent: remote.live.agent || remote.live.label, message: remote.live.message } : otherBusy;
   const islandBusy = busy || (asstLine ? "Assistant" : null) || (otherLive ? "Working" : null);
   const islandLines = asstLine && !busy ? [asstLine] : otherLive ? [otherLive] : lines;
 
@@ -162,7 +210,7 @@ export default function Workspace() {
             {steps.map((st, i) => {
               const locked = st.status === "locked";
               return (
-                <button key={st.stage} className={`rail-item ${view === st.stage ? "active" : ""} ${st.status}`}
+                <button key={st.stage} className={`rail-item ${view === st.stage ? "active" : ""} ${st.status} ${st.status === "now" && islandBusy ? "working" : ""}`}
                   onClick={() => (locked ? setTip(tip?.stage === st.stage ? null : st) : (setTip(null), go(st.stage)))}
                   aria-current={view === st.stage ? "step" : undefined} data-tip={`${st.label} · ${st.sub}`}
                   aria-label={`${st.label}: ${st.sub}${locked ? " (not yet)" : ""}`}>
@@ -178,6 +226,12 @@ export default function Workspace() {
               );
             })}
           </div>
+          {steps.length === 1 && (
+            <div className={`rail-ghost ${rail ? "" : "mini"}`} title="More steps appear as Tesselle understands what you need">
+              <span className="rail-dot ghost">+</span>
+              {rail && <span className="tiny muted">Your steps appear here as Tesselle understands what you need</span>}
+            </div>
+          )}
           {tip && (
             <div className="rail-tip glass" role="note">
               <b>{tip.label}</b>
@@ -220,7 +274,7 @@ export default function Workspace() {
           </header>
 
           <main className="ws-center">
-            <div className="center-inner">{body}</div>
+            <div className="center-inner" key={view}>{body}</div>
           </main>
 
           <NextBar nd={state.next_decision} view={view} primary={primary} onPrimary={() => primaryClick.current?.()} busy={busy}
@@ -232,7 +286,10 @@ export default function Workspace() {
         </aside>
       </div>
 
-      <VoiceOrb pid={pid} view={view} onState={(s) => { if (s) setState(s); load(); }} onNavigate={(s) => go(s)} onBusy={setAsstLine} />
+      <VoiceOrb pid={pid} view={view} onState={(s) => { if (s) setState(s); load(); }} onNavigate={(s) => go(s)} onBusy={setAsstLine}
+        autoStart={params.get("voice") === "1"} />
+      {capture && <CaptureSheet state={state} kind={capture.kind} what={capture.what} onClose={() => setCapture(null)}
+        onState={(s) => { if (s) setState(s); else load(); }} />}
       <EdgeGlow on={!!islandBusy} />
       {pilot && <Pilot go={(s) => go(s)} onEnd={() => setPilot(false)} openActivity={() => setActivity(true)} />}
       {activity && <ActivityDrawer events={state.events} onClose={() => setActivity(false)} />}
@@ -243,7 +300,8 @@ export default function Workspace() {
         <Modal onClose={() => setHelp(false)}>
           <h2 style={{ fontSize: 26 }}>How Tesselle works</h2>
           <div className="small col" style={{ gap: 10, lineHeight: 1.6 }}>
-            <div><b>Talk to it:</b> tap the orb (bottom-right) and just say what you want - Tesselle fills in your brief, searches, adds picks and opens each step while it talks. The keyboard next to it opens the chat.</div>
+            <div><b>Talk to it:</b> tap the orb (bottom-right) and just say what you want - Tesselle fills in your brief, searches, adds picks and moves to the next step when it's ready. It waits for you to finish. The chat bubble next to it opens the chat; the clock replays the conversation.</div>
+            <div><b>Your devices stay in step:</b> the phone, the laptop and the glasses mirror each other - the step, the scroll and anything running. Open the project anywhere and it continues where you left off.</div>
             <div><b>Steps (left):</b> they adapt to what you do - buying from a store skips messaging makers. Tap a step to open it; a locked one tells you what it does. <b>Back</b> is on the bottom bar.</div>
             <div><b>Bottom bar:</b> the one next step. <b>Right:</b> your brief and notes - change anything, any time; every change is a version you can restore.</div>
             <div><b>Must-haves</b> are kept unless you agree to change them. A seller can propose; only you decide.</div>

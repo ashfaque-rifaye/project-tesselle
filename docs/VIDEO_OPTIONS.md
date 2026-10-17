@@ -7,7 +7,7 @@ Goal: 2-3 short videos that show Tesselle working in real situations, made from 
 1. **"It has to fit the shelf"** - desk organiser, 18 cm limit, nothing in stock fits, a Chennai maker quotes,
    a 20 cm counteroffer is blocked. (Already scripted as the in-app guided demo.)
 2. **"Buy it today"** - a phone accessory or charger that must match a device: real listings, best match, buy link.
-3. **"Seen it, want it"** - a Ray-Ban Meta capture in a shop, spoken question, spoken answer on the phone app.
+3. **"Seen it, want it"** - a MetaGlass capture in a shop, spoken question, spoken answer on the phone app.
 
 ## Ways to make them
 

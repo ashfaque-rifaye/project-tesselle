@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import logging
 import re
 import time
@@ -218,6 +219,46 @@ def _ld_product_images(html: str) -> list[str]:
     return out
 
 
+_PRICE_META = re.compile(r'<meta[^>]+(?:property|name|itemprop)=["\'](?:product:price:amount|og:price:amount|price)["\'][^>]*content=["\']([\d.,]+)', re.I)
+
+
+def _ld_price(html: str) -> Optional[float]:
+    """The listed price in INR from schema.org offers or price meta tags - what the store tells Google Shopping."""
+    for block in _LD.findall(html)[:15]:
+        try:
+            data = json.loads(block.strip())
+        except Exception:
+            continue
+        stack = [data]
+        while stack:
+            d = stack.pop()
+            if isinstance(d, list):
+                stack.extend(d)
+                continue
+            if not isinstance(d, dict):
+                continue
+            offers = d.get("offers")
+            for o in offers if isinstance(offers, list) else [offers]:
+                if isinstance(o, dict) and str(o.get("priceCurrency", "INR")).upper() == "INR":
+                    p = o.get("price") or o.get("lowPrice")
+                    try:
+                        v = float(str(p).replace(",", ""))
+                        if 10 <= v <= 5_000_000:
+                            return v
+                    except (TypeError, ValueError):
+                        pass
+            for key in ("@graph", "hasVariant", "mainEntity", "itemListElement"):
+                if key in d:
+                    stack.append(d[key])
+    m = _PRICE_META.search(html[:400_000])
+    if m:
+        try:
+            return float(m.group(1).replace(",", ""))
+        except ValueError:
+            return None
+    return None
+
+
 def _abs(img: str, base: str) -> Optional[str]:
     img = html_unescape(img.strip()).replace("\\u002F", "/").replace("\\/", "/")
     if img.startswith("//"):
@@ -322,6 +363,7 @@ async def fill_missing_images(entries: list[dict[str, Any]]) -> None:
     for e in missing:
         if e["url"] in cached:
             e["image_url"] = cached[e["url"]]
+    await _index_images([e for e in missing if not e.get("image_url")])
     sem = asyncio.Semaphore(4)
     async with httpx.AsyncClient(timeout=httpx.Timeout(25, connect=6)) as h:
         async def microlink(e: dict[str, Any]) -> None:
@@ -341,6 +383,187 @@ async def fill_missing_images(entries: list[dict[str, Any]]) -> None:
             await _remember_image(e["url"], e["image_url"])
 
 
+# ---- Vertex AI Search: Google's own index of Indian stores ----------------------------------------
+# A website data store over ~45 Indian retailers (Amazon.in, Flipkart, IKEA India, Myntra, Croma, Nykaa,
+# IndiaMART, FirstCry, Decathlon...). Results come from Google's index, so each listing arrives with the
+# product photo Google saw - no request to a store that blocks cloud servers.
+
+VAIS_ENGINE = os.environ.get("TESSELLE_SEARCH_ENGINE",
+                             f"projects/{config.PROJECT}/locations/global/collections/default_collection/engines/tesselle-search")
+_PROMO = re.compile(r"/promos?/|social_share|amazon_logo|/www/\d+/\d+/|banner|sprite", re.I)
+_tok: dict[str, Any] = {"v": None, "at": 0.0}
+
+
+def _gtoken() -> str:
+    import google.auth
+    import google.auth.transport.requests
+
+    from .. import identity
+    if _tok["v"] and time.time() - _tok["at"] < 2400:
+        return _tok["v"]
+    creds = identity.credentials()
+    if creds is None:
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    creds.refresh(google.auth.transport.requests.Request())
+    _tok.update(v=creds.token, at=time.time())
+    return creds.token
+
+
+def _index_image(d: dict[str, Any]) -> Optional[str]:
+    pm = d.get("pagemap") or {}
+    mt = (pm.get("metatags") or [{}])[0]
+    for u in (mt.get("og:image"), mt.get("twitter:image"), (pm.get("cse_image") or [{}])[0].get("src")):
+        if u and u.startswith("http") and not _BAD_IMG.search(u) and not _PROMO.search(u):
+            return u
+    return None
+
+
+async def catalog_search(query: str, n: int = 10) -> list[dict[str, Any]]:
+    """Product pages from the Vertex AI Search store index: [{url, title, snippet, image}]. Never raises."""
+    try:
+        tok = await asyncio.to_thread(_gtoken)
+        async with httpx.AsyncClient(timeout=12) as h:
+            for attempt in range(2):
+                r = await h.post(f"https://discoveryengine.googleapis.com/v1/{VAIS_ENGINE}/servingConfigs/default_search:search",
+                                 headers={"Authorization": f"Bearer {tok}", "x-goog-user-project": config.PROJECT},
+                                 json={"query": query[:300], "pageSize": n})
+                if r.status_code == 200:
+                    break
+                await asyncio.sleep(1.2)
+        if r.status_code != 200:
+            log.info("catalog search %s: %s", r.status_code, r.text[:200])
+            return []
+        out = []
+        for res in r.json().get("results", []):
+            d = (res.get("document") or {}).get("derivedStructData") or {}
+            link = d.get("link")
+            if not link:
+                continue
+            snip = " ".join(re.sub(r"<[^>]+>", "", s.get("snippet", "")) for s in d.get("snippets") or [])
+            out.append({"url": link, "title": d.get("title") or "", "snippet": snip[:300], "image": _index_image(d)})
+        return out
+    except Exception as e:
+        log.info("catalog search skipped: %s", type(e).__name__)
+        return []
+
+
+async def _catalog_round(b: Brief, city: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Listings from the store index, structured and fit-checked the same way as the grounded search."""
+    musts = [r.label for r in b.musts()][:3]
+    queries = [f"{b.title} " + " ".join(musts), f"buy {b.title} online India"]
+    found = await asyncio.gather(*(catalog_search(q, 10) for q in queries))
+    seen: set[str] = set()
+    lines = []
+    for res in found:
+        for x in res:
+            key = x["url"].split("?")[0]
+            if key in seen or _is_listing_index(x["url"]):
+                continue
+            seen.add(key)
+            lines.append(x)
+    lines = lines[:12]
+    if not lines:
+        return [], []
+    structured, s2 = await gemini.generate_structured(
+        FoundListings,
+        [
+            "Brief attribute keys to fill when stated: " + _attr_keys(b),
+            "Brief must-haves: " + _musts(b),
+            "Store pages found (index: title | store | text):\n" + "\n".join(
+                f"{i}: {x['title']} | {urlparse(x['url']).netloc.removeprefix('www.')} | {x['snippet']}" for i, x in enumerate(lines)),
+            "Structure each page that is one specific product that could suit the brief (skip accessories or unrelated items). "
+            "Use only values stated in its line. Unknown -> null.",
+        ],
+        purpose="catalog-structurer",
+        fast=True,
+    )
+    now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+    entries = []
+    for it in structured.items:
+        if it.line < 0 or it.line >= len(lines):
+            continue
+        x = lines[it.line]
+        url = x["url"]
+        specs = Specs(width_cm=it.width_cm, depth_cm=it.depth_cm, height_cm=it.height_cm, material=it.material,
+                      finish=it.finish, mounting=it.mounting, features=it.features, price_inr=it.price_inr,
+                      delivery_days=it.delivery_days, attributes={a.key: a.value for a in it.attributes})
+        fit = guard.fit(b, specs, listing=True)
+        domain = urlparse(url).netloc.removeprefix("www.")
+        entries.append({
+            "item_id": "web-" + _hid(url, it.name), "route": "buy", "name": it.name, "description": it.summary,
+            "seller_id": domain, "seller_name": _store_name(it.store, url, None), "seller_label": domain, "url": url,
+            "image_url": x["image"] or _amazon_image(url), "image_path": None, "source_title": x["title"],
+            "specs": specs.model_dump(), "stock": it.availability, "checked_at": now, "price_inr": it.price_inr,
+            "shipping_inr": None, "shipping_estimate": False, "unresolved": ["Price, delivery charge and date: see the store page"]
+            if it.price_inr is None else ["Delivery charge and date: see checkout"],
+            "verdict": fit.verdict, "decisive": fit.decisive, "checks": [c.model_dump() for c in fit.checks], "found_by": "store index",
+        })
+    return entries, [s2.as_dict()]
+
+
+class Companions(BaseModel):
+    items: list[str] = Field(description="2-3 short store search queries for products that complete the scene, e.g. 'white desk lamp LED'.")
+
+
+_PRICE = re.compile(r"(?:₹|Rs\.?|INR)\s?([\d,]{3,9})")
+
+
+async def companions(b: Brief, exclude: set[str]) -> list[dict[str, Any]]:
+    """Real products that go with what is being bought (a lamp and a chair for a desk, a dupatta for a blouse), so the
+    shoppable picture is a whole scene, like a catalogue page. Found in the store index, each with its own photo and
+    link; they are extras - they don't change the brief and are never checked against its must-haves."""
+    try:
+        out, _ = await asyncio.wait_for(gemini.generate_structured(Companions, [
+            f"The customer is buying: {b.title}. {b.purpose}. Must-haves: {_musts(b)}.",
+            "Suggest 2-3 different, inexpensive products that would naturally appear with it in one styled photo and that the "
+            "customer might also like (not the same kind of product). Match colours and style. Short Indian-store search queries.",
+        ], purpose="companions", fast=True), 10)
+    except Exception as e:
+        log.info("companions skipped: %s", e)
+        return []
+    found = await asyncio.gather(*(catalog_search(q + " buy online India", 6) for q in out.items[:3]))
+    now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+    entries = []
+    for q, res in zip(out.items, found):
+        ok = [x for x in res if x["image"] and not _is_listing_index(x["url"]) and x["url"].split("?")[0] not in exclude]
+        pick = next((x for x in ok if _serves_india(x["url"])), None) or (ok[0] if ok else None)
+        if not pick:
+            continue
+        exclude.add(pick["url"].split("?")[0])
+        m = _PRICE.search(pick["snippet"])
+        domain = urlparse(pick["url"]).netloc.removeprefix("www.")
+        name = re.split(r"\s[|:-]\s|: Amazon\.in|\| Flipkart", pick["title"])[0].strip()
+        name = re.sub(r"^(buy|shop)\s+", "", name, flags=re.I)
+        name = re.sub(r"\s+(online|at best price|at lowest price|in india).*$", "", name, flags=re.I).strip()[:90] or q
+        entries.append({
+            "item_id": "cmp-" + _hid(pick["url"], name), "route": "buy", "name": name, "description": f"Goes with it: {q}",
+            "seller_id": domain, "seller_name": _store_name("", pick["url"], None), "seller_label": domain, "url": pick["url"],
+            "image_url": pick["image"], "image_path": None, "source_title": pick["title"], "specs": {}, "stock": "unknown",
+            "checked_at": now, "price_inr": float(m.group(1).replace(",", "")) if m else None, "shipping_inr": None,
+            "shipping_estimate": False, "unresolved": ["Price, delivery charge and date: see the store page"],
+            "verdict": "extra", "decisive": "Goes with your pick - not part of your must-haves", "checks": [], "complement": True,
+        })
+    return entries
+
+
+async def _index_images(missing: list[dict[str, Any]]) -> None:
+    """Photos for listings that came back without one: look the product up in the store index by name."""
+    async def one(e: dict[str, Any]) -> None:
+        host = urlparse(e["url"]).netloc.removeprefix("www.")
+        res = await catalog_search(f"{e['name']} {host}", 5)
+        key = e["url"].split("?")[0].rstrip("/")
+        for x in res:
+            if x["image"] and (x["url"].split("?")[0].rstrip("/") == key or (_amazon_asin(x["url"]) and _amazon_asin(x["url"]) == _amazon_asin(e["url"]))):
+                e["image_url"] = x["image"]
+                return
+    await asyncio.gather(*(one(e) for e in missing[:6]))
+
+
+def _amazon_asin(url: str) -> Optional[str]:
+    m = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", url)
+    return m.group(1) if m else None
+
+
 async def _page_meta(h: httpx.AsyncClient, url: str) -> dict[str, Optional[str]]:
     try:
         html = await asyncio.wait_for(fetch_html(h, url), 14)  # a page that trickles bytes can't stall the search
@@ -353,7 +576,7 @@ async def _page_meta(h: httpx.AsyncClient, url: str) -> dict[str, Optional[str]]
         found.setdefault(k.lower(), v)
     for v, k in _META_REV.findall(html[:400_000]):
         found.setdefault(k.lower(), v)
-    return {"image": best_image(html, url), "title": found.get("og:title"), "site": found.get("og:site_name")}
+    return {"image": best_image(html, url), "title": found.get("og:title"), "site": found.get("og:site_name"), "price": _ld_price(html)}
 
 
 def _amazon_image(url: str) -> Optional[str]:
@@ -466,7 +689,10 @@ async def find_listings(b: Brief, region: str) -> dict[str, Any]:
         f"Check well-known stores that deliver to {city}, such as {STORES_IN}. Skip stores that do not ship to India.\n"
         f"Give individual product pages, not category or search pages.\n{fmt}"
     )
-    entries, stats = await _listing_round(b, city, prompt, "shopping-agent")
+    (entries, stats), (catalog, cstats) = await asyncio.gather(_listing_round(b, city, prompt, "shopping-agent"), _catalog_round(b, city))
+    known = {e["url"].split("?")[0] for e in entries}
+    entries += [e for e in catalog if e["url"].split("?")[0] not in known]
+    stats += cstats
     if sum(_serves_india(e["url"]) and not _is_listing_index(e["url"]) for e in entries) < 3:
         # Too few deliverable results: search Indian marketplaces directly and merge.
         prompt2 = (
@@ -511,7 +737,7 @@ async def _listing_round(b: Brief, city: str, prompt: str, purpose: str) -> tupl
                 return None
             meta = await _page_meta(h, url)
             specs = Specs(width_cm=it.width_cm, depth_cm=it.depth_cm, height_cm=it.height_cm, material=it.material,
-                          finish=it.finish, mounting=it.mounting, features=it.features, price_inr=it.price_inr,
+                          finish=it.finish, mounting=it.mounting, features=it.features, price_inr=it.price_inr or meta.get("price"),
                           delivery_days=it.delivery_days, attributes={a.key: a.value for a in it.attributes})
             fit = guard.fit(b, specs, listing=True)
             verdict, decisive = fit.verdict, fit.decisive
@@ -523,7 +749,7 @@ async def _listing_round(b: Brief, city: str, prompt: str, purpose: str) -> tupl
                 "item_id": "web-" + _hid(url, it.name), "route": "buy", "name": it.name, "description": it.summary,
                 "seller_id": domain, "seller_name": _store_name(it.store, url, meta.get("site")), "seller_label": domain, "url": url,
                 "image_url": meta.get("image") or _amazon_image(url), "image_path": None, "source_title": getattr(chunk.web, "title", None),
-                "specs": specs.model_dump(), "stock": it.availability, "checked_at": now, "price_inr": it.price_inr,
+                "specs": specs.model_dump(), "stock": it.availability, "checked_at": now, "price_inr": specs.price_inr,
                 "shipping_inr": None, "shipping_estimate": False, "unresolved": ["Delivery charge and date: see checkout"],
                 "verdict": verdict, "decisive": decisive, "checks": [c.model_dump() for c in fit.checks],
             }

@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
-import { ArrowUpRight, Check, ClipboardPaste, ImagePlus, Loader2, PackageCheck, ShoppingBag, ShoppingCart, Truck, Undo2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
+import { ArrowUpRight, Check, ClipboardPaste, ImagePlus, Loader2, PackageCheck, ShoppingBag, ShoppingCart, Smartphone, Truck, Undo2 } from "lucide-react";
 import { img, inr, media } from "../api";
 import MicButton from "../components/MicButton";
 import { ProgressStrip, favicon } from "../components/ui";
@@ -11,6 +12,7 @@ const cur = (o: Order) => o.milestones.find((m) => m.state === "current")?.key;
 function OrderCard({ o, ctx }: { o: Order; ctx: StageCtx }) {
   const { pid, busy } = ctx;
   const [paste, setPaste] = useState(false);
+  const [onPhone, setOnPhone] = useState(false);
   const [text, setText] = useState("");
   const file = useRef<HTMLInputElement>(null);
   const step = cur(o);
@@ -56,8 +58,10 @@ function OrderCard({ o, ctx }: { o: Order; ctx: StageCtx }) {
           <ol className="co-steps">{co.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
           <div className="row wrap" style={{ gap: 6 }}>
             {co.url && <a className="btn primary sm" href={co.url} target="_blank" rel="noreferrer" data-pilot="checkout"><ShoppingBag size={14} /> {co.label} <ArrowUpRight size={13} /></a>}
+            {co.url && <button className="btn sm" onClick={() => setOnPhone(!onPhone)}><Smartphone size={14} /> Finish on my phone</button>}
             <button className="btn sm" onClick={() => setPaste(!paste)} data-pilot="ordered-it"><ClipboardPaste size={14} /> I've ordered it</button>
           </div>
+          {onPhone && co.url && <PhoneCheckout url={co.url} store={o.seller_name} />}
           {paste && (
             <div className="col" style={{ gap: 6 }}>
               <div className="tiny muted">Paste the store's confirmation (email or SMS) or add a screenshot - Gemini reads the order number and delivery date. Or just save it.</div>
@@ -133,6 +137,28 @@ export default function Fulfil({ ctx }: { ctx: StageCtx }) {
       </div>
       <ProgressStrip lines={lines} busy={!!busy} />
       {orders.map((o) => <OrderCard key={o.id} o={o} ctx={ctx} />)}
+    </div>
+  );
+}
+
+
+/** Finish the order on the phone, where you're already signed in to the store: the checkout agent's cart opens
+ *  there; choose cash on delivery (or pay as you like) and place it, then the confirmation comes back here. */
+function PhoneCheckout({ url, store }: { url: string; store: string }) {
+  const [qr, setQr] = useState("");
+  useEffect(() => { QRCode.toDataURL(url, { margin: 1, width: 200, color: { dark: "#0B1618", light: "#EEF5F2" } }).then(setQr).catch(() => {}); }, [url]);
+  return (
+    <div className="phone-co">
+      {qr ? <img src={qr} alt={`QR code: open the ${store} cart on your phone`} /> : <Loader2 className="spin" />}
+      <div className="col" style={{ gap: 6 }}>
+        <b className="small">Scan with your phone</b>
+        <ol className="tiny muted" style={{ margin: 0, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 3 }}>
+          <li>The {store} cart opens in your app, already filled by the checkout agent.</li>
+          <li>Pick <b>Cash on delivery</b> at payment (if {store} offers it for your PIN code) and place the order.</li>
+          <li>Paste the confirmation here, or Tesselle reads it from your connected inbox.</li>
+        </ol>
+        <span className="tiny muted">Tesselle never signs in to your store account or sees payment details.</span>
+      </div>
     </div>
   );
 }

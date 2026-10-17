@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Check, ChevronDown, Globe, Hammer, Home, Mail, Phone, Plus, RefreshCw, Search, Send, ShoppingBag, Sparkles } from "lucide-react";
 import { ago, img, inr } from "../api";
-import LookViewer from "../components/LookViewer";
+import { LookModal, LookTile } from "../components/ShopTheLook";
 import { CheckChip, ProgressStrip, StockChip, VERDICT, favicon } from "../components/ui";
 import { FitRing } from "../components/Viz";
-import type { RouteEntry } from "../types";
+import type { LookItem, RouteEntry } from "../types";
 import { brief as currentBrief, usePrimary, type StageCtx } from "./ctx";
 
 function storeLogo(e: RouteEntry) {
@@ -62,9 +62,16 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
   const hasSpace = !!state.project.inspiration?.image_path && !state.project.inspiration?.generated_image;
 
   const addPick = (id: string) => ctx.act("Adding to your picks", `/api/projects/${pid}/cart`, { entry_id: id }, "Added to your picks").catch(() => {});
-  async function shopLook() {
+  const [openLook, setOpenLook] = useState<string | null>(null);
+  const entryMap = Object.fromEntries((routes?.entries || []).map((e) => [e.item_id, e]));
+  const savedNote = (it: LookItem) => (state.notes || []).some((n) => n.text.includes(it.name.slice(0, 40)));
+  const saveItem = (it: LookItem) => savedNote(it) ? null
+    : ctx.act("Saving", `/api/projects/${pid}/notes`, { text: `Saved: ${it.name.slice(0, 80)} - ${it.seller_name}${it.price_inr ? ` ${inr(it.price_inr)}` : ""}${it.url ? ` ${it.url}` : ""}`, share: false }, "Saved to your notes").catch(() => {});
+  async function shopLook(open = true) {
     try {
-      await ctx.streamAct("Making the picture", `/api/projects/${pid}/looks`, { in_space: true }, "Shoppable picture ready");
+      const s = await ctx.streamAct("Making the picture", `/api/projects/${pid}/looks`, { in_space: true }, "Shoppable picture ready");
+      const latest = s?.looks?.[s.looks.length - 1];
+      if (open && latest) setOpenLook(latest.id);
     } catch {
       /* toast */
     }
@@ -74,8 +81,9 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
     fd.append("entry_id", entryId);
     if (file) fd.append("photo", file);
     try {
-      await ctx.streamAct("Placing it in your space", `/api/projects/${pid}/looks/space`, fd, "Here it is in your space");
-      document.querySelector(".look")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const s = await ctx.streamAct("Placing it in your space", `/api/projects/${pid}/looks/space`, fd, "Here it is in your space");
+      const latest = s?.looks?.[s.looks.length - 1];
+      if (latest) setOpenLook(latest.id);
     } catch {
       /* toast */
     }
@@ -104,6 +112,14 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
   const no = buy.filter((e) => e.verdict === "not_suitable");
   const makers = entries.filter((e) => e.route === "make");
   const best = buy.find((e) => e.verdict === "meets");
+
+  // Once options are found, style them into a shoppable picture by itself (once per search).
+  useEffect(() => {
+    if (!routes || stale || looks.length || busy || good.filter((e) => e.image_url).length < 1 || state.project.demo) return;
+    const key = `tsl.look.${pid}.${routes.checked_at}`;
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); } catch { return; }
+    shopLook(false);
+  }, [routes?.checked_at]); // eslint-disable-line
 
   usePrimary(ctx, !routes || stale
     ? { label: stale ? "Search again" : "Find options", onClick: explore, disabled: !b?.confirmed, icon: <Search size={16} />,
@@ -163,13 +179,20 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
           </div>
 
           {good.some((e) => e.image_url) && (
-            <div className="card pad section look-card">
+            <div className="stl-strip">
               <div className="row between wrap">
-                <div><h3>See them together</h3><div className="small muted">Gemini puts the real products {hasSpace ? "into your photo" : "in a room"} - tap a dot to shop it, like a catalogue page.</div></div>
-                <button className="btn sm primary" onClick={shopLook} disabled={!!busy} data-pilot="shop-look"><ShoppingBag size={14} /> {looks.length ? "Make another" : "Shop the look"}</button>
+                <div><h3>Shop the look</h3><div className="small muted">The real products {hasSpace ? "in your own photo" : "styled together"} - tap a dot to shop it, like a catalogue page.</div></div>
+                <button className="btn sm" onClick={() => shopLook()} disabled={!!busy} data-pilot="shop-look"><ShoppingBag size={14} /> {looks.length ? "Make another" : "Shop the look"}</button>
               </div>
-              {looks[0] && <LookViewer look={looks[0]} busy={!!busy} onAdd={(it) => addPick(it.entry_id)} />}
+              <div className="stl-tiles">
+                {looks.map((l, i) => <LookTile key={l.id} look={l} fresh={i === 0} onOpen={() => setOpenLook(l.id)} />)}
+                {!looks.length && <div className="stl-tile pending">{busy === "Making the picture" ? <><span className="spin-ring" /> Gemini is styling the real products...</> : <>Tap "Shop the look"</>}</div>}
+              </div>
             </div>
+          )}
+          {openLook && looks.find((l) => l.id === openLook) && (
+            <LookModal look={looks.find((l) => l.id === openLook)!} entries={entryMap} inPicks={inCart} saved={savedNote} busy={!!busy}
+              onAdd={(it) => addPick(it.entry_id)} onSave={saveItem} onTry={(it) => onTry(it.entry_id)} onClose={() => setOpenLook(null)} />
           )}
 
           <div className="group-head"><h3>Available now</h3><span className="chip muted">{good.length}</span></div>

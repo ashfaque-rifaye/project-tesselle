@@ -35,7 +35,7 @@ async function shareWhatsApp(r: Recipient, atts: Attachment[]): Promise<boolean>
   return true;
 }
 
-function RecipientCard({ ctx, req, r, owner }: { ctx: StageCtx; req: SellerRequest; r: Recipient; owner: boolean }) {
+function RecipientCard({ ctx, req, r, owner, wa }: { ctx: StageCtx; req: SellerRequest; r: Recipient; owner: boolean; wa: boolean }) {
   const { pid, busy } = ctx;
   const toast = useToast();
   const [editing, setEditing] = useState(false);
@@ -51,9 +51,9 @@ function RecipientCard({ ctx, req, r, owner }: { ctx: StageCtx; req: SellerReque
   const done = ["sent", "calling", "called", "replied"].includes(r.status);
 
   async function send() {
-    if (channel === "whatsapp") {
+    if (channel === "whatsapp" && !(wa && owner)) {
       await shareWhatsApp(r, atts);
-      await ctx.streamAct("Saving", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: [r.entry_id] }, `Sent to ${r.name} on WhatsApp`).catch(() => {});
+      await ctx.streamAct("Saving", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: [r.entry_id], via_device: true }, `Sent to ${r.name} on WhatsApp`).catch(() => {});
       return;
     }
     if (!owner) {
@@ -146,7 +146,7 @@ function RecipientCard({ ctx, req, r, owner }: { ctx: StageCtx; req: SellerReque
       {!done && (
         <div className="row wrap" style={{ gap: 6 }}>
           <button className="btn sm primary" disabled={!!busy || missing && channel !== "whatsapp"} onClick={send} data-pilot="send-one">
-            {CH[channel].icon} {channel === "call" ? `Call ${r.name.split(" ")[0]}` : channel === "whatsapp" ? "Open in WhatsApp" : "Send email"}
+            {CH[channel].icon} {channel === "call" ? `Call ${r.name.split(" ")[0]}` : channel === "whatsapp" ? (wa && owner ? "Send WhatsApp" : "Open in WhatsApp") : "Send email"}
           </button>
           {channel !== "call" && !editing && <button className="btn sm ghost" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>}
           <div className="grow" />
@@ -167,7 +167,8 @@ export default function Request({ ctx }: { ctx: StageCtx }) {
   const { st } = useChannels();
   const owner = !!st?.owner;
   const pending = req ? req.recipients.filter((r) => r.status === "draft" || r.status === "failed") : [];
-  const direct = pending.filter((r) => (r.channel || "email") !== "whatsapp");
+  const wa = !!st?.whatsapp;
+  const direct = pending.filter((r) => (r.channel || "email") !== "whatsapp" || (wa && owner));
 
   async function sendAll() {
     if (!owner) {
@@ -208,7 +209,7 @@ export default function Request({ ctx }: { ctx: StageCtx }) {
         </div>
       )}
       <ProgressStrip lines={lines} busy={!!busy} />
-      {req.recipients.map((r) => <RecipientCard key={r.entry_id} ctx={ctx} req={req} r={r} owner={owner} />)}
+      {req.recipients.map((r) => <RecipientCard wa={wa} key={r.entry_id} ctx={ctx} req={req} r={r} owner={owner} />)}
       {req.ref && <div className="tiny muted">Reference {req.ref} - replies to these emails are read and checked automatically.</div>}
     </div>
   );

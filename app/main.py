@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import channels, config, gemini, identity, live, services, store
+from . import channels, config, gemini, identity, live, phone, services, store
 from .agents import assistant
 
 logging.basicConfig(level=logging.INFO)
@@ -263,12 +263,48 @@ async def edit_project(pid: str, body: ProjectEdit):
 class ViewBody(BaseModel):
     stage: str
     device: str = "desktop"
+    kind: str = ""
+    scroll: Optional[float] = None
+    busy: Optional[str] = None
 
 
 @app.post("/api/projects/{pid}/view")
 async def set_view(pid: str, body: ViewBody):
-    await services.set_view(pid, body.stage, body.device)
+    await services.set_view(pid, body.stage, body.device, body.scroll, body.busy, body.kind)
     return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/photo")
+async def add_photo(
+    pid: str,
+    kind: str = Form("space"),
+    note: str = Form(""),
+    source: str = Form("phone"),
+    image: Optional[UploadFile] = File(None),
+    video: Optional[UploadFile] = File(None),
+):
+    """A photo from the QR capture page, the webcam or the glasses: stored and read into the project."""
+    img, vid = await _media(image, video)
+    if not (img or vid):
+        raise services.ServiceError("Add a photo or a short clip.")
+
+    async def gen():
+        yield {"type": "progress", "agent": "Brief agent", "message": f"Reading your photo of the {kind}"}
+        if img:
+            res = await services.add_photo(pid, img, kind=kind, note=note, source=source[:40])
+        else:
+            await services.start_from_inspiration(pid, text=note, video=vid, consent_photo=True, source=source[:40]) \
+                if await store.get_brief(pid) is None else None
+            res = {"ok": True, "photo": "Video clip"}
+        yield {"type": "progress", "agent": "Brief agent", "message": "Added: " + (res.get("photo") or res.get("title") or "photo")}
+        yield {"type": "result", "photo": res, "state": await _state(pid)}
+
+    return _ndjson(gen(), pid, "Brief agent")
+
+
+@app.get("/api/projects/{pid}/voice")
+async def voice_turns(pid: str):
+    return await store.list_coll(pid, "voice")
 
 
 @app.get("/api/pincode/{pin}")
@@ -649,6 +685,7 @@ async def update_recipient(pid: str, rid: str, eid: str, patch: services.Recipie
 
 
 class SendBody(BaseModel):
+    via_device: bool = False
     entry_ids: Optional[list[str]] = None
 
 
@@ -658,8 +695,10 @@ async def send_outreach(pid: str, rid: str, body: SendBody, x_owner_key: Optiona
     if req and any(r.get("channel") in ("email", "call") for r in req["recipients"] if not body.entry_ids or r["entry_id"] in body.entry_ids):
         await _owner(x_owner_key)
 
+    wa_ok = not body.via_device and await channels.is_owner(x_owner_key)
+
     async def gen():
-        async for ev in services.send_outreach(pid, rid, body.entry_ids, PUBLIC_API):
+        async for ev in services.send_outreach(pid, rid, body.entry_ids, PUBLIC_API, wa_ok=wa_ok):
             if ev["type"] == "result":
                 yield {"type": "result", "state": await _state(pid)}
             else:
@@ -699,6 +738,10 @@ async def _twilio(request: Request, cid: str) -> tuple[str, dict[str, str]]:
 @app.post("/api/calls/{cid}/voice")
 async def call_voice(cid: str, request: Request):
     pid, _ = await _twilio(request, cid)
+    call = await store.get(pid, "calls", cid) or {}
+    if call.get("stream_token"):  # real-time conversation through Gemini Live
+        ws_url = PUBLIC_API.replace("https://", "wss://") + f"/api/calls/{cid}/stream"
+        return Response(phone.twiml_stream(ws_url, call["stream_token"]), media_type="application/xml")
     line = await services.call_opening(pid, cid)
     return Response(channels.twiml_say_gather(line, f"{PUBLIC_API}/api/calls/{cid}/turn"), media_type="application/xml")
 
@@ -716,9 +759,42 @@ async def call_turn(cid: str, request: Request):
 async def call_status(cid: str, request: Request):
     pid, form = await _twilio(request, cid)
     status = form.get("CallStatus", "completed")
-    if status in ("completed", "busy", "no-answer", "failed", "canceled"):
+    call = await store.get(pid, "calls", cid) or {}
+    if status in ("completed", "busy", "no-answer", "failed", "canceled") and call.get("stream") != "live":
         await services.finish_call(pid, cid, status)
     return {"ok": True}
+
+
+@app.websocket("/api/calls/{cid}/stream")
+async def call_stream(ws: WebSocket, cid: str):
+    """Twilio Media Streams: the phone call's audio, both ways (checked with the per-call token)."""
+    await ws.accept()
+    await phone.handle(ws, cid)
+
+
+@app.post("/api/whatsapp/inbound")
+async def whatsapp_inbound(request: Request):
+    """A seller's WhatsApp reply: matched to the project by their number and read like any other reply."""
+    form = {k: str(v) for k, v in (await request.form()).items()}
+    if not await channels.valid_signature(f"{PUBLIC_API}/api/whatsapp/inbound", form, request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(403, "Bad signature")
+    num = form.get("From", "").replace("whatsapp:", "").lstrip("+")
+    idx = await store.db().collection("wa_index").document(num).get()
+    if not idx.exists:
+        return Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")
+    ref = idx.to_dict()
+    img = await channels.twilio_media(form["MediaUrl0"]) if form.get("NumMedia", "0") != "0" and form.get("MediaUrl0") else None
+
+    async def read() -> None:
+        try:
+            await services.add_reply(ref["pid"], text=form.get("Body", ""), image=img, request_id=ref["request_id"],
+                                     seller_name=ref["name"], entry_id=ref["entry_id"])
+        except Exception:
+            log.exception("whatsapp reply failed")
+
+    asyncio.create_task(read())
+    return Response('<?xml version="1.0" encoding="UTF-8"?><Response><Message>Thank you! Tesselle has passed this to the customer.'
+                    '</Message></Response>', media_type="application/xml")
 
 
 # ---- Voice agent (Gemini Live) --------------------------------------------------------------------
@@ -740,7 +816,7 @@ async def live_voice(ws: WebSocket, pid: str):
         await ws.close(code=1008)
         return
     owner_ok = await channels.is_owner(hello.get("key"))
-    await live.handle(ws, pid, str(hello.get("stage") or ""), owner_ok, PUBLIC_API)
+    await live.handle(ws, pid, str(hello.get("stage") or ""), owner_ok, PUBLIC_API, camera=bool(hello.get("camera")))
 
 
 @app.post("/api/projects/{pid}/replies")

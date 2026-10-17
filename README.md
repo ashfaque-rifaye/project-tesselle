@@ -1,6 +1,6 @@
 # Project Tesselle
 
-**Imagine it. Keep what matters. Get it made.**
+**One agent for everything that has to fit.**
 
 Project Tesselle is a personal shopping agent for the **Retail & Commerce** theme of the Google Cloud AI Builder
 Cup 2026 - built for purchases that have to *fit*: a space, a device, a person, an occasion or a deadline.
@@ -33,7 +33,7 @@ pre-enters your PIN code, you authorise payment, and the **order tracker** keeps
 ## The journey
 
 1. **Start** - tap the voice orb and say it, or pick a way: describe it (type or talk - words appear as you
-   speak), show a photo or video, use the camera, imagine it with Gemini (also by voice), or capture from Ray-Ban
+   speak), show a photo or video, use the camera, imagine it with Gemini (also by voice), or capture from MetaGlass
    Meta glasses. Delivery city **and PIN code** from your location (OpenStreetMap), a PIN code (India Post) or a
    saved place.
 2. **Your brief** - the brief agent writes must-haves vs nice-to-haves (e.g. "max depth 18 cm", "no drilling");
@@ -70,16 +70,17 @@ The steps adapt to what you do (buying from a store skips Reach out and Replies)
 | Agent / capability | How |
 |---|---|
 | **Brief agent** | ADK `LlmAgent` on **Gemini 3.8 Flash**, typed output schema; inputs: text, voice, photos, **video**, generated images. |
-| **Shopping agent + maker scout** | **ADK 2 graph `Workflow`**: `prepare → (shopping_agent ‖ maker_scout) → JoinNode → advisor`. Both use **Gemini with Grounding with Google Search**; each result line is tied to its cited page (grounding supports), the redirect is resolved to the real product or maker page, and the page's preview image is used. **Gemini Embedding 2** ranks results by relevance. |
+| **Shopping agent + maker scout** | **ADK 2 graph `Workflow`**: `prepare → (shopping_agent ‖ maker_scout) → JoinNode → advisor`. The shopping agent runs **Gemini with Grounding with Google Search** in parallel with a **Vertex AI Search** website store over ~45 Indian retailers (Amazon.in, Flipkart, IKEA India, Myntra, Croma, Nykaa, IndiaMART...), whose results arrive with the product photo from Google's index; prices come from each page's schema.org offer. For grounded results, each result line is tied to its cited page (grounding supports), the redirect is resolved to the real product or maker page, and the page's preview image is used. **Gemini Embedding 2** ranks results by relevance. |
 | **Fit checker** | `app/guard.py` - deterministic requirement checks, verdicts, quote deviations and choose gates. LLMs only *explain* verdicts. |
 | **Advisor** | Short, plain-language summary (headline, 2-4 bullets, best next step). |
 | **Design agent** | Writes the art direction; **Gemini image generation** draws concepts, with tap-to-point refinements. |
 | **Outreach agent** | Drafts quote requests and follow-ups; sends email from the connected inbox with attachments. Photos are re-encoded (no camera data / GPS) and Gemini finds faces, documents and addresses, which are blurred. |
-| **Call agent** | Phones a maker (Twilio Programmable Voice): discloses it is an AI assistant, asks the must-haves, price and lead time turn by turn with Gemini, and the transcript becomes a checked quote. |
-| **Visual agent** | **Shop the look**: Gemini image generation composes the real product photos (and the customer's room photo) into one scene; Gemini then returns each product's bounding box, so the picture is shoppable. **In my space**: edits the customer's own photo to place a product. |
+| **Call agent** | A **real-time phone conversation**: Twilio Media Streams carry the call audio (8 kHz mu-law) over a WebSocket to Cloud Run, bridged to **Gemini Live** - natural, interruptible speech, live transcript. It says it is an AI assistant calling for a customer, asks the must-haves, price and lead time, never shares the customer's details, and the transcript becomes a checked quote. WhatsApp messages (with photos) go out through Twilio and replies flow straight back in. |
+| **Adaptive brief + journey** | After every brief change Gemini lays out the panel for *this* purchase - the 3-6 facts that decide fit (blouse size and date; laptop model and wattage; quantity and print colours), how requirements group, and the likely path (buy, made for you, bulk sourcing), which shapes the step rail. |
+| **Visual agent** | **Shop the look** (catalogue-style: dots on each product, price cards, add to picks, save): the best options plus companion products from the store index ("goes with it"), Gemini image generation composes the real product photos (and the customer's room photo) into one scene; Gemini then returns each product's bounding box, so the picture is shoppable. **In my space**: edits the customer's own photo to place a product. |
 | **Checkout agent + order tracker** | Builds the fastest legitimate checkout per store (Amazon multi-item cart link, Shopify cart permalink with the PIN code pre-filled, or product page + steps); Gemini reads pasted confirmations and inbox order emails into the order history. |
 | **Reply reader** | Turns a pasted reply, screenshot or PDF into a structured offer; decision cards explain any change. |
-| **Voice agent (live)** | **Gemini Live (native audio, `gemini-live-2.5-flash-native-audio`)** over a WebSocket on Cloud Run: speech in, speech out, barge-in, live captions. It has the same 20 tools as the chat agent - start/edit the brief, budget, city + PIN, answer questions, notes, confirm, draw, find options, shop the look, add picks, place orders, draft/send messages, check replies, open any step - slow tools run in the background and it speaks the result when ready. |
+| **Voice agent (live)** | **Gemini Live (native audio, `gemini-live-2.5-flash-native-audio`)** over a WebSocket on Cloud Run: speech in, speech out, patient turn-taking (it waits for a real pause), session resumption plus a saved, replayable conversation so it continues where you left off on any device, and camera frames in MetaGlass mode so it sees what you see. It has the same 20 tools as the chat agent - start/edit the brief, budget, city + PIN, answer questions, notes, confirm, draw, find options, shop the look, add picks, place orders, draft/send messages, check replies, open any step - slow tools run in the background and it speaks the result when ready. |
 | **Assistant (chat)** | The same tools as an ADK agent; the mic types your words (no voice notes); **Agent Platform Sessions + Memory Bank** keep one conversation across desktop, phone and glasses. |
 | **Delivery inspector** | Gemini vision compares a delivery photo with the agreed checklist. |
 | **Self-running guided demo** | The app drives itself through the real journey (live agents, live web search) with captions and narration. |
@@ -96,11 +97,12 @@ spring motion.
 - **See the agents work** - a Dynamic-Island status pill says which Gemini agent is doing what, right now.
 - **Your brief, editable everywhere** - budget, city, deadline, must-haves and nice-to-haves, at any step.
 - **Calm by default** - a hideable, adaptive step rail, a round Activity icon, a living voice orb in the corner.
-- **Voice first** - tap the orb and talk; a keyboard button beside it opens the chat. Every text box has a mic that
-  types what you say.
-- **One project, every device** - open it on the phone and it mirrors the computer: the same step opens on both,
-  and an agent started on one device shows its live progress on the other. Glasses HUD and the Ray-Ban Meta share
-  target work on the same project.
+- **Voice first** - tap the orb (a WebGL shader) and talk; it waits for you to finish, moves the screen once when its
+  turn is done, and asks for a photo when one would help (a QR code opens your phone's camera on the project).
+  The chat bubble opens the chat; the clock replays the conversation in your own (tidied) voice.
+- **One project, every device** - phone, laptop and glasses mirror each other: the step, the scroll position and
+  anything running; open the project anywhere and it continues where you left off. **MetaGlass mode** simulates
+  smart glasses with the phone camera: a heads-up card, live voice and vision, "save this view".
 
 ## Google Cloud stack
 
@@ -108,6 +110,7 @@ spring motion.
   fallback), **Gemini Live 2.5 Flash native audio** (real-time voice agent), **Grounding with Google Search**, Gemini 3.1
   Flash Image (concepts, shop the look, in-my-space edits), Gemini 2D object detection (hotspots, privacy blur), Gemini
   Embedding 2, Gemini 2.5 Flash TTS; Agent Runtime with **Sessions** and **Memory Bank** (`asia-southeast1`).
+- **Vertex AI Search** (Discovery Engine, website data store, Enterprise tier) - a store index over Indian retailers for listings with photos.
 - **Secret Manager** - the owner's email app password, Twilio credentials and owner key, read at runtime (never in the repo).
 - **Google ADK 2.12** - `LlmAgent`s with output schemas and tools, graph `Workflow` with parallel fan-out and `JoinNode`,
   `Runner`, Vertex session & memory services, OpenTelemetry.

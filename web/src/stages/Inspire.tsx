@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, Camera, Film, Glasses, ImagePlus, Loader2, Mic, PenLine, PlayCircle, Sparkles, Square, Trash2, Wand2 } from "lucide-react";
 import { get, media, post } from "../api";
@@ -25,7 +25,7 @@ const CHOICES: { mode: Mode; icon: JSX.Element; title: string; text: string }[] 
   { mode: "inspiration", icon: <ImagePlus />, title: "Show a photo or video", text: "Something you saw, liked or want to match." },
   { mode: "space", icon: <Camera />, title: "Use my camera", text: "Show the space or thing it has to fit." },
   { mode: "imagine", icon: <Sparkles />, title: "Imagine it", text: "Describe it and Gemini draws it for you." },
-  { mode: "glasses", icon: <Glasses />, title: "From my glasses", text: "Ray-Ban Meta capture, straight to your agent." },
+  { mode: "glasses", icon: <Glasses />, title: "From my glasses", text: "MetaGlass capture, straight to your agent." },
 ];
 
 export default function Inspire({ ctx }: { ctx: StageCtx }) {
@@ -33,8 +33,8 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
   const toast = useToast();
   const [params] = useSearchParams();
   const insp = state.project.inspiration || {};
-  const [mode, setMode] = useState<Mode | null>((params.get("mode") as Mode) || null);
-  const [text, setText] = useState(insp.text || "");
+  const [mode, setMode] = useState<Mode | null>((params.get("mode") as Mode) || (params.get("q") ? "describe" : null));
+  const [text, setText] = useState(insp.text || params.get("q") || "");
   const [region, setRegion] = useState("");
   const [pincode, setPincode] = useState("");
   const [item, setItem] = useState<Media | null>(null);
@@ -94,6 +94,15 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
     }
   }
 
+  // A homepage example ("Try this") starts the real brief straight away.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (params.get("q") && !state.briefs.length && !autoRan.current && !busy) {
+      autoRan.current = true;
+      submit();
+    }
+  }, []); // eslint-disable-line
+
   const ready = !busy && (text.trim().length > 3 || !!item || !!dict.audio);
   usePrimary(ctx, mode && mode !== "glasses" ? {
     label: "Create my brief",
@@ -145,7 +154,7 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
       {mode === "glasses" ? (
         <div className="card pad section">
           <p className="small" style={{ color: "var(--ink-2)", lineHeight: 1.6 }}>
-            Photos and clips from Ray-Ban Meta glasses sync to your phone. Install Tesselle on your phone (Add to Home Screen), then in the Meta AI
+            Photos and clips from MetaGlass sync to your phone. Install Tesselle on your phone (Add to Home Screen), then in the Meta AI
             app choose <b>Share → Tesselle</b> - the capture goes straight to your agent, and the answer is spoken back.
           </p>
           <div className="row wrap">

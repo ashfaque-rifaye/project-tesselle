@@ -1,0 +1,87 @@
+/* Shop the look: catalogue-style modal (light, like a store's inspiration gallery) */
+.stl-strip { display: flex; flex-direction: column; gap: 12px; }
+.stl-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.stl-tile { position: relative; aspect-ratio: 4 / 3; border-radius: 20px; overflow: hidden; border: 1px solid var(--edge); background: var(--well); padding: 0; cursor: pointer;
+  display: grid; place-items: center; color: var(--muted); font-size: 13px; transition: transform 0.4s var(--spring), box-shadow 0.4s; }
+.stl-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1s var(--spring); }
+.stl-tile:hover img { transform: scale(1.05); }
+.stl-tile:hover { box-shadow: 0 24px 60px -30px rgba(215, 255, 60, 0.45); }
+.stl-tile.fresh { border-color: rgba(215, 255, 60, 0.5); }
+.stl-tile.pending { cursor: default; display: flex; gap: 10px; align-items: center; justify-content: center; }
+.spin-ring { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(215, 255, 60, 0.25); border-top-color: var(--volt); animation: spin 0.9s linear infinite; }
+.stl-count { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92); color: #111; font-weight: 700; font-size: 13px; }
+.stl-open { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px; border-radius: 999px;
+  background: var(--volt); color: var(--volt-ink); font-weight: 700; font-size: 12.5px; opacity: 0; transform: translateY(6px); transition: all 0.3s var(--spring); }
+.stl-tile:hover .stl-open, .stl-tile.fresh .stl-open { opacity: 1; transform: none; }
+.stl-kind { position: absolute; left: 10px; top: 10px; display: inline-flex; gap: 4px; align-items: center; font-size: 11px; font-weight: 650; padding: 4px 9px; border-radius: 999px; background: rgba(0, 0, 0, 0.55); color: #fff; }
+
+.stl-backdrop { position: fixed; inset: 0; z-index: 95; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; padding: 24px; animation: fadein 0.25s both; }
+.stl-modal { width: min(1340px, 100%); max-height: calc(100vh - 48px); background: #fff; color: #111; border-radius: 10px; padding: 26px 30px 30px; display: flex; flex-direction: column; gap: 20px;
+  font-family: "Inter", system-ui, sans-serif; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5); animation: rise 0.35s var(--spring) both; }
+.stl-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.stl-head h3 { font-family: "Inter", sans-serif; font-size: 19px; font-weight: 700; color: #111; letter-spacing: -0.01em; margin: 0; }
+.stl-head span { font-size: 13px; color: #484848; }
+.stl-x { border: none; background: none; color: #111; cursor: pointer; padding: 4px; border-radius: 50%; }
+.stl-x:hover { background: #f0f0f0; }
+.stl-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 0.95fr); gap: 24px; min-height: 0; }
+.stl-pic { position: relative; align-self: start; overflow: hidden; background: #f5f5f5; }
+.stl-pic > img { display: block; width: 100%; height: auto; max-height: calc(100vh - 190px); object-fit: contain; }
+.stl-before { position: absolute; inset: 0; }
+.stl-before img { width: 100%; height: 100%; object-fit: contain; }
+.stl-split { position: absolute; left: 12px; right: 12px; bottom: 12px; width: calc(100% - 24px); accent-color: #0058a3; z-index: 3; }
+.stl-dot { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; border: none; padding: 0; cursor: pointer; z-index: 4;
+  background: rgba(255, 255, 255, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); display: grid; place-items: center; transition: transform 0.25s var(--spring); }
+.stl-dot i { width: 12px; height: 12px; border-radius: 50%; background: #111; transition: background 0.2s; }
+.stl-dot::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.7); animation: stl-ping 2.4s ease-out infinite; }
+@keyframes stl-ping { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.6); opacity: 0; } }
+.stl-dot:hover, .stl-dot.on { transform: scale(1.12); }
+.stl-dot.on { background: #111; }
+.stl-dot.on i { background: #fff; }
+.stl-pop { position: absolute; z-index: 5; transform: translate(26px, -50%); display: flex; align-items: stretch; background: #fff; color: #111; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  min-width: 190px; max-width: 260px; animation: rise 0.25s var(--spring) both; }
+.stl-pop.left { transform: translate(calc(-100% - 26px), -50%); }
+.stl-pop .grow { padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stl-pop b { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stl-pop span { font-size: 12.5px; color: #484848; }
+.stl-pop > button { border: none; border-left: 1px solid #e5e5e5; background: #fff; padding: 0 10px; cursor: pointer; color: #111; }
+.stl-pop > button:hover { background: #f5f5f5; }
+.stl-price { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; margin-top: 4px; color: #111; }
+.stl-price small { font-size: 12px; font-weight: 700; margin-right: 1px; vertical-align: 0.65em; }
+.stl-ai { position: absolute; left: 10px; bottom: 10px; display: inline-flex; gap: 5px; align-items: center; font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88); color: #333; }
+.stl-list { border: 2px solid #111; overflow-y: auto; max-height: calc(100vh - 190px); padding: 0 14px; scrollbar-width: thin !important; }
+.stl-list::-webkit-scrollbar { display: block !important; width: 6px; }
+.stl-list::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+.stl-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 16px; padding: 18px 0; border-bottom: 1px solid #e5e5e5; align-items: start; transition: background 0.2s; }
+.stl-row:last-child { border-bottom: none; }
+.stl-row.on { background: linear-gradient(90deg, rgba(0, 88, 163, 0.06), transparent); }
+.stl-row img { width: 96px; height: 96px; object-fit: contain; background: #fff; }
+.stl-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stl-info b { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.01em; color: #111; }
+.stl-desc { font-size: 13.5px; color: #333; line-height: 1.35; }
+.stl-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; color: #6a6a6a; margin-top: 6px; }
+.stl-meta a { color: #0058a3; text-decoration: none; display: inline-flex; gap: 2px; align-items: center; }
+.stl-meta a:hover { text-decoration: underline; }
+.stl-meta button { border: none; background: none; color: #0058a3; font-size: 12px; cursor: pointer; padding: 0; }
+.stl-warn { font-size: 12px; color: #c0392b; font-weight: 600; margin-top: 4px; }
+.stl-acts { display: flex; align-items: center; gap: 10px; padding-top: 28px; }
+.stl-cart { width: 46px; height: 46px; border-radius: 50%; border: none; background: #0058a3; color: #fff; display: grid; place-items: center; cursor: pointer; transition: background 0.2s, transform 0.2s; }
+.stl-cart:hover:not(:disabled) { background: #004f93; transform: scale(1.05); }
+.stl-cart.done { background: #0a8a3a; }
+.stl-cart:disabled:not(.done) { background: #c8c8c8; cursor: not-allowed; }
+.stl-heart { width: 36px; height: 36px; border-radius: 50%; border: none; background: none; color: #111; display: grid; place-items: center; cursor: pointer; }
+.stl-heart:hover { background: #f0f0f0; }
+.stl-heart.on svg { fill: #e00751; color: #e00751; }
+@media (max-width: 900px) {
+  .stl-backdrop { padding: 0; }
+  .stl-modal { max-height: 100vh; height: 100vh; border-radius: 0; padding: 16px; overflow-y: auto; }
+  .stl-body { grid-template-columns: 1fr; }
+  .stl-list { max-height: none; }
+  .stl-row { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 10px; }
+  .stl-row img { width: 72px; height: 72px; }
+  .stl-acts { flex-direction: column; padding-top: 4px; gap: 4px; }
+}
+.stl-extra { font-size: 11.5px; color: #0058a3; font-weight: 600; margin-top: 4px; }
+.phone-co { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 16px; background: var(--well); margin-top: 8px; }
+.phone-co img { width: 132px; height: 132px; border-radius: 10px; flex: none; }

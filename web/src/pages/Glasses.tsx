@@ -1,35 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Circle, Glasses as GlassesIcon, ImageUp, Loader2, Mic, MicOff, Monitor, RefreshCcw, Video, X } from "lucide-react";
-import { stream } from "../api";
-import { openStream, pickVideoMime, snapshot } from "../components/CameraCapture";
+import { Camera, Check, Eye, Glasses as GlassesIcon, Loader2, Maximize2, Monitor, RefreshCcw, ScanLine, X } from "lucide-react";
+import { img, inr, stream } from "../api";
+import { openStream, snapshot } from "../components/CameraCapture";
+import { FacetIcon } from "../components/icons";
+import { OrbGL, useLiveVoice } from "../components/VoiceOrb";
+import { syncView } from "../sync";
 import { useProject } from "../useProject";
 
-/** Glasses mode: a heads-up capture surface. On a phone it uses the rear camera as a stand-in for the
- *  glasses' camera; photos and clips from Ray-Ban Meta arrive via the share sheet or the import button.
- *  Every capture goes to the agent, and the reply is spoken (Gemini TTS) and shown as a HUD caption. */
+/** MetaGlass mode - a simulation of Tesselle on smart glasses. The phone's rear camera (or a webcam)
+ *  stands in for the glasses camera; the live voice agent hears you and, about once a second, sees
+ *  what you see (Gemini Live with video frames). The heads-up card shows only what matters - what the
+ *  agent heard and said, the key facts of your brief, and the best option so far - and "Save this
+ *  view" adds the current frame to the project. Everything appears on your phone and laptop too. */
 export default function Glasses() {
   const { pid } = useParams();
-  const { state } = useProject(pid);
+  const { state, load, setState } = useProject(pid);
   const video = useRef<HTMLVideoElement>(null);
+  const canvas = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const recRef = useRef<MediaRecorder | null>(null);
-  const voiceRef = useRef<MediaRecorder | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [camError, setCamError] = useState(false);
-  const [clipping, setClipping] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [voice, setVoice] = useState<Blob | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("Point at your space or an inspiring item. Tap to capture, hold the video button for a clip.");
-  const [reply, setReply] = useState<string | null>(null);
+  const [lens, setLens] = useState(() => window.innerWidth > 760);
+  const [saving, setSaving] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
+  const v = useLiveVoice(pid || "", "inspire", { navigate: () => {}, refresh: () => load() }, { camera: true });
+  const active = v.mode !== "off" && v.mode !== "error";
 
   useEffect(() => {
     let cancelled = false;
-    openStream(facing, true)
-      .catch(() => openStream(facing, false))
+    openStream(facing, false)
       .then((s) => {
         if (cancelled) return s.getTracks().forEach((t) => t.stop());
         streamRef.current = s;
@@ -43,131 +43,125 @@ export default function Glasses() {
     };
   }, [facing]);
 
-  async function send(media: Blob | null, kind: "image" | "video" | null, source = "glasses mode (phone camera)") {
-    setBusy(true);
-    setReply(null);
+  // While the agent is listening it also sees: about one small frame a second.
+  useEffect(() => {
+    if (!active || camError) return;
+    const t = setInterval(() => {
+      const vid = video.current;
+      if (!vid || !vid.videoWidth) return;
+      const c = canvas.current || (canvas.current = document.createElement("canvas"));
+      const scale = Math.min(1, 640 / vid.videoWidth);
+      c.width = Math.round(vid.videoWidth * scale);
+      c.height = Math.round(vid.videoHeight * scale);
+      c.getContext("2d")!.drawImage(vid, 0, 0, c.width, c.height);
+      v.sendFrame(c.toDataURL("image/jpeg", 0.6).split(",")[1]);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [active, camError]); // eslint-disable-line
+
+  // The other devices see that the glasses are on, and what they're doing.
+  useEffect(() => {
+    if (pid) syncView(pid, { stage: state?.project.stage || "inspire", busy: v.tool ? `MetaGlass: ${v.tool}` : null }, 200);
+  }, [pid, v.tool, state?.project.stage]);
+
+  async function saveView() {
+    if (!video.current || camError || !pid) return;
+    setFlash(true);
+    setTimeout(() => setFlash(false), 160);
+    setSaving("Saving what you see");
     const fd = new FormData();
-    fd.append("source", source);
-    if (media && kind) fd.append(kind, media, kind === "video" ? "clip.webm" : "capture.jpg");
-    if (voice) fd.append("audio", voice, "question.webm");
+    fd.append("kind", "space");
+    fd.append("source", "MetaGlass");
+    fd.append("image", await snapshot(video.current), "metaglass.jpg");
     try {
-      let audio: string | null = null;
-      await stream(`/api/projects/${pid}/glance`, fd, (e) => {
-        if (e.message) setStatus(e.message);
-        const ev = e as unknown as { type: string; reply?: string; audio?: string };
-        if (ev.type === "result") {
-          setReply(ev.reply || "Saved to your project.");
-          audio = ev.audio || null;
+      let caption = "Saved";
+      const s = await stream(`/api/projects/${pid}/photo`, fd, (e) => {
+        const ev = e as unknown as { type: string; photo?: { photo?: string; seen?: string[] } };
+        if (ev.type === "result" && ev.photo) {
+          caption = ev.photo.photo || caption;
+          if (active) v.sendText(`(The customer saved this view as a photo: ${caption}. ${(ev.photo.seen || []).join("; ")})`, true);
         }
       });
-      setVoice(null);
-      setStatus("Saved to your project - it's on your desktop too.");
-      if (audio) new Audio(audio).play().catch(() => {});
+      if (s) setState(s);
+      setSaving(`Saved: ${caption}`);
     } catch (e) {
-      setStatus(`Couldn't send: ${(e as Error).message}. Nothing was changed.`);
-    } finally {
-      setBusy(false);
+      setSaving(`Couldn't save: ${(e as Error).message}`);
     }
-  }
-
-  async function capture() {
-    if (!video.current || camError) return fileInput.current?.click();
-    setFlash(true);
-    setTimeout(() => setFlash(false), 180);
-    const blob = await snapshot(video.current);
-    send(blob, "image");
-  }
-
-  function toggleClip() {
-    if (clipping) return recRef.current?.stop();
-    if (!streamRef.current) return;
-    const mime = pickVideoMime();
-    const r = new MediaRecorder(streamRef.current, mime ? { mimeType: mime, videoBitsPerSecond: 2_000_000 } : undefined);
-    const chunks: Blob[] = [];
-    r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-    r.onstop = () => {
-      setClipping(false);
-      send(new Blob(chunks, { type: (r.mimeType || "video/webm").split(";")[0] }), "video");
-    };
-    r.start(250);
-    recRef.current = r;
-    setClipping(true);
-    setStatus("Recording a clip - tap again to stop (max 8 s)");
-    setTimeout(() => r.state !== "inactive" && r.stop(), 8000);
-  }
-
-  async function toggleVoice() {
-    if (listening) return voiceRef.current?.stop();
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const r = new MediaRecorder(s);
-      const chunks: Blob[] = [];
-      r.ondataavailable = (e) => chunks.push(e.data);
-      r.onstop = () => {
-        s.getTracks().forEach((t) => t.stop());
-        setListening(false);
-        const b = new Blob(chunks, { type: (r.mimeType || "audio/webm").split(";")[0] });
-        setVoice(b);
-        setStatus("Question recorded - capture a photo or clip to send it, or tap the mic again to send just the question.");
-      };
-      r.start();
-      voiceRef.current = r;
-      setListening(true);
-      setStatus("Listening... tap the mic again when you're done");
-    } catch {
-      setStatus("Microphone not available.");
-    }
+    setTimeout(() => setSaving(null), 2600);
   }
 
   const b = state?.briefs[state.briefs.length - 1];
+  const layout = state?.project.layout;
+  const best = state?.routes?.entries.find((e) => e.verdict === "meets") || state?.routes?.entries[0];
+  const caption = v.error || (v.who === "you" ? v.heard : v.said);
+
   return (
-    <div className="glasses">
+    <div className={`glasses mg ${lens ? "lens" : ""}`}>
       {camError ? (
-        <div className="feed" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "url(/media/hero-sm.jpg) center / cover" }}>
-          <div style={{ textAlign: "center", maxWidth: 420, padding: 22, borderRadius: 28 }} className="col glass">
-            <GlassesIcon size={40} color="var(--volt)" style={{ margin: "0 auto" }} />
-            <div className="small">No camera here. Import a photo or clip from your glasses (synced to your phone), or open this page on your phone.</div>
-          </div>
-        </div>
+        <div className="feed" style={{ position: "absolute", inset: 0, background: "url(/media/hero-sm.jpg) center / cover" }} />
       ) : (
         <video ref={video} className="feed" autoPlay playsInline muted />
       )}
-      {flash && <div style={{ position: "absolute", inset: 0, background: "#fff", opacity: 0.6 }} />}
+      {flash && <div className="mg-flash" />}
+      {lens && <div className="mg-frame" aria-hidden="true"><i /><i /><b /></div>}
       <div className="vignette" />
-      <div className="hud">
-        <div className="reticle"><i /><i /><i /><i />{busy && <div className="scanline" />}</div>
-      </div>
+
       <div className="hud-top">
-        <span className="who glass"><GlassesIcon size={16} color="var(--volt)" /> Tesselle · glasses mode</span>
+        <span className="who glass"><GlassesIcon size={16} color="var(--volt)" /> Tesselle · MetaGlass <span className="tiny muted">simulated</span></span>
         <span className="row" style={{ gap: 8 }}>
-          {b && <span className="chip teal">Brief v{b.version}</span>}
-          <a className="hud-btn" style={{ width: 40, height: 40 }} href={`/p/${pid}`} aria-label="Open on desktop"><Monitor size={16} /></a>
-          <a className="hud-btn" style={{ width: 40, height: 40 }} href="/" aria-label="Exit"><X size={16} /></a>
+          <button className="hud-btn sm" onClick={() => setLens(!lens)} aria-label={lens ? "Full view" : "Lens view"} title={lens ? "Full view" : "Lens view"}><Maximize2 size={15} /></button>
+          <a className="hud-btn sm" href={`/p/${pid}`} aria-label="Open on desktop" title="Open the project"><Monitor size={15} /></a>
+          <a className="hud-btn sm" href="/" aria-label="Exit"><X size={15} /></a>
         </span>
       </div>
-      <div className="hud-bubble glass" aria-live="polite">
-        <div className="k">
-          {busy ? <><Loader2 size={11} className="spin" style={{ verticalAlign: -1 }} /> GEMINI IS LOOKING</> : reply ? "TESSELLE" : "READY"}
+
+      {/* The heads-up card: what you'd see in the corner of the right lens. */}
+      <div className="mg-hud" aria-live="polite">
+        <div className="mg-status">
+          <span className={`mg-dot ${v.mode}`} />
+          {v.mode === "off" ? "Tap the orb to talk" : v.mode === "listening" ? (active && !camError ? <><Eye size={11} /> Listening · seeing</> : "Listening")
+            : v.mode === "working" ? <><Loader2 size={11} className="spin" /> {v.tool}</> : v.mode}
         </div>
-        <div>{reply || status}</div>
-        {reply && <div className="tiny muted" style={{ marginTop: 6 }}>{status}</div>}
+        {caption && <div className={`mg-cap ${v.who}`}>{v.who === "you" ? `"${caption.trim()}"` : caption}</div>}
+        {v.done.length > 0 && <div className="mg-done">{v.done.slice(-2).map((d, i) => <span key={i}><Check size={10} /> {d.label}</span>)}</div>}
+        {b && (
+          <div className="mg-brief">
+            <b>{b.title}</b>
+            <div className="mg-facts">
+              {(layout?.facets || []).filter((f) => f.value).slice(0, 3).map((f) => (
+                <span key={f.label}><FacetIcon name={f.icon} size={11} /> {f.value}</span>
+              ))}
+              {!layout && b.requirements.filter((r) => r.kind === "must").slice(0, 2).map((r) => <span key={r.id}>{r.label}</span>)}
+            </div>
+          </div>
+        )}
+        {best && (
+          <div className="mg-best">
+            {best.image_url && <img src={img(best.image_url)} alt="" />}
+            <span className="grow"><span className="tiny muted">Best fit so far</span><span className="small clamp2">{best.name}</span></span>
+            {best.price_inr ? <b className="small">{inr(best.price_inr)}</b> : null}
+          </div>
+        )}
+        {saving && <div className="mg-saving small">{saving}</div>}
       </div>
+
+      {!active && (
+        <div className="mg-hint glass small">
+          Talk and look around: "I need a bookshelf for this gap" - Tesselle sees the space, asks what it can't see, and fills in your brief.
+          {camError && <div className="tiny muted" style={{ marginTop: 6 }}>No camera here - open this page on your phone to use its camera as the glasses.</div>}
+        </div>
+      )}
+
       <div className="hud-controls glass">
-        <button className={`hud-btn ${listening ? "on" : ""}`} onClick={() => (listening ? toggleVoice() : voice && !busy ? send(null, null) : toggleVoice())}
-          aria-label={listening ? "Stop listening" : "Ask by voice"} disabled={busy}>
-          {listening ? <MicOff size={20} /> : <Mic size={20} />}
+        <button className="hud-btn" onClick={() => setFacing(facing === "environment" ? "user" : "environment")} aria-label="Switch camera" disabled={camError}><RefreshCcw size={18} /></button>
+        <button className={`mg-orb ${v.mode}`} onClick={() => (active ? v.stop() : v.start())} aria-label={active ? "Stop" : "Talk to Tesselle"}>
+          <OrbGL mode={v.mode} level={v.level} outLevel={v.outLevel} size={78} />
         </button>
-        <button className={`hud-btn ${clipping ? "on" : ""}`} onClick={toggleClip} aria-label="Record a clip" disabled={busy || camError}>
-          {clipping ? <Circle size={18} color="var(--red)" fill="var(--red)" /> : <Video size={20} />}
+        <button className="hud-btn" onClick={saveView} aria-label="Save this view to the project" title="Save this view" disabled={camError || !!saving}>
+          {saving ? <Loader2 size={18} className="spin" /> : <Camera size={19} />}
         </button>
-        <button className={`shutter ${clipping ? "rec" : ""}`} onClick={capture} aria-label="Capture photo" disabled={busy || clipping}><span /></button>
-        <button className="hud-btn" onClick={() => fileInput.current?.click()} aria-label="Import from glasses gallery" disabled={busy}><ImageUp size={20} /></button>
-        <button className="hud-btn" onClick={() => setFacing(facing === "environment" ? "user" : "environment")} aria-label="Switch camera" disabled={busy || camError}><RefreshCcw size={18} /></button>
       </div>
-      <input ref={fileInput} type="file" accept="image/*,video/*" hidden onChange={(e) => {
-        const f = e.target.files?.[0];
-        if (f) send(f, f.type.startsWith("video/") ? "video" : "image", "smart glasses (imported)");
-      }} />
+      {active && !camError && <div className="mg-scan" aria-hidden="true"><ScanLine size={14} /> Gemini sees this view</div>}
     </div>
   );
 }

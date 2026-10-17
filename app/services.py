@@ -13,6 +13,7 @@ import io
 import json
 import logging
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncIterator, Literal, Optional
 from urllib.parse import quote as urlquote
@@ -24,7 +25,7 @@ from google.api_core import exceptions as gexc
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from . import gemini, guard, store
+from . import gemini, guard, journey, store
 from .agents import specialists as sp
 from .agents.route_explorer import PROGRESS, route_workflow
 from .agents.runtime import run_specialist
@@ -93,6 +94,13 @@ def _split_pin(region: str) -> tuple[str, Optional[str]]:
 # =============================================================================================
 
 
+def today_line() -> str:
+    """Models don't know today's date; dates without a year ("by 12 December") mean the next one."""
+    from datetime import datetime, timedelta, timezone
+    d = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    return f"Today is {d:%A %d %B %Y} (India). A date without a year means its next occurrence; write dates as YYYY-MM-DD."
+
+
 async def start_from_inspiration(
     pid: str,
     *,
@@ -116,6 +124,7 @@ async def start_from_inspiration(
             raise ServiceError("That image does not belong to this project.", 403)
         image = await store.download_media(image_path)
         consent_photo, generated = True, image_path.endswith("/imagined")
+    parts.append(today_line())
     if text.strip():
         parts.append("Customer typed:\n" + text.strip())
     if region.strip():
@@ -181,6 +190,7 @@ async def start_from_inspiration(
         },
     )
     await _advance(pid, "clarify")
+    await journey.refresh_layout(pid)
     musts = sum(1 for r in brief.requirements if r.kind == "must")
     await store.log(
         pid, "agent:brief_agent",
@@ -271,8 +281,13 @@ class QuestionRefresh(BaseModel):
 
 
 async def refresh_questions(pid: str) -> None:
-    """After any change: close questions the brief now answers, and ask at most one new, relevant
-    question - never one that was asked before (in any wording)."""
+    """After any brief change: refresh the questions and the adaptive panel layout together."""
+    await asyncio.gather(_refresh_questions(pid), journey.refresh_layout(pid))
+
+
+async def _refresh_questions(pid: str) -> None:
+    """Close questions the brief now answers, and ask at most one new, relevant question - never one
+    that was asked before (in any wording)."""
     brief = await store.get_brief(pid)
     if brief is None:
         return
@@ -737,7 +752,7 @@ async def update_recipient(pid: str, rid: str, entry_id: str, patch: RecipientPa
     return req
 
 
-async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], public_base: str) -> AsyncIterator[dict[str, Any]]:
+async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], public_base: str, wa_ok: bool = False) -> AsyncIterator[dict[str, Any]]:
     """The outreach agent sends each message on its chosen channel, right from Tesselle."""
     from . import channels
 
@@ -790,7 +805,8 @@ async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], publ
             yield {"type": "progress", "agent": "Call agent", "message": f"Calling {r['name']}"}
             call_id = store.new_id("call")
             call = {"id": call_id, "request_id": rid, "entry_id": r["entry_id"], "name": r["name"], "to": phone, "status": "dialling",
-                    "transcript": [], "turns": 0, "created_at": now_iso(), "processed": False}
+                    "transcript": [], "turns": 0, "created_at": now_iso(), "processed": False,
+                    "stream_token": secrets.token_urlsafe(18)}  # real-time voice (Twilio Media Streams + Gemini Live)
             await store.put(pid, "calls", call_id, call)
             await store.db().collection("call_index").document(call_id).set({"pid": pid})
             try:
@@ -804,9 +820,25 @@ async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], publ
                 call["status"] = "failed"
                 await store.put(pid, "calls", call_id, call)
                 r["status"], r["error"] = "failed", str(e)[:160]
-        else:  # whatsapp: opened on the customer's device with the message and photos
-            r["status"], r["sent_at"] = "sent", now_iso()
-            await store.log(pid, "customer", f"Sent the message to {r['name']} on WhatsApp", kind="decision")
+        else:  # whatsapp: sent through Twilio when connected; otherwise opened on the customer's device
+            phone = channels.normalise_phone((r.get("contact") or {}).get("phone") or "")
+            if st.get("whatsapp") and phone and wa_ok:
+                yield {"type": "progress", "agent": "Outreach agent", "message": f"WhatsApp to {r['name']}"
+                       + (f" with {len(r.get('attachments') or [])} photo(s)" if r.get("attachments") else "")}
+                media = [f"{public_base}/api/media/{atts[a]['path']}" for a in r.get("attachments") or [] if a in atts]
+                body = r["body"] + f"\n\n- Sent by Tesselle, an AI shopping agent, for a customer. Just reply here. Ref {req['ref']}"
+                try:
+                    r["message_id"] = await channels.send_whatsapp(phone, body, media)
+                    r["status"], r["sent_at"], r["error"] = "sent", now_iso(), None
+                    await store.db().collection("wa_index").document(phone.lstrip("+")).set(
+                        {"pid": pid, "request_id": rid, "entry_id": r["entry_id"], "name": r["name"], "at": now_iso()})
+                    await store.log(pid, "agent:outreach_agent", f"Sent WhatsApp to {r['name']}" + (f" with {len(media)} photo(s)" if media else ""),
+                                    kind="agent", detail="Replies on WhatsApp come straight back into Tesselle and are checked against your brief.")
+                except Exception as e:
+                    r["status"], r["error"] = "failed", str(e)[:160]
+            else:
+                r["status"], r["sent_at"] = "sent", now_iso()
+                await store.log(pid, "customer", f"Sent the message to {r['name']} on WhatsApp", kind="decision")
     req["status"] = "sent" if any(r["status"] in ("sent", "calling", "called") for r in req["recipients"]) else req["status"]
     req["sent_at"] = req.get("sent_at") or now_iso()
     await store.put(pid, "requests", rid, req)
@@ -1191,6 +1223,8 @@ async def _item_checks(pid: str, brief: Brief, entry_id: Optional[str], quote_id
         blockers.append(f"These results were found for brief v{routes['brief_version']}; your brief is now v{brief.version}. Search again first.")
     if entry["verdict"] == "not_suitable":
         blockers.append("This one breaks a must-have: " + entry["decisive"])
+    if entry.get("complement"):
+        needs["check_on_store"] = "It goes with your pick - I'll check its size and price on the store page"
     unknown = [c["label"] for c in entry.get("checks", []) if c["kind"] == "must" and c["result"] == "unknown"]
     if unknown:
         needs["check_on_store"] = "I'll check these on the store page first: " + "; ".join(unknown)
@@ -1738,11 +1772,53 @@ async def update_note(pid: str, nid: str, text: Optional[str] = None, share: Opt
     await store.put(pid, "notes", nid, note)
 
 
-async def set_view(pid: str, stage: str, device: str) -> None:
-    """Which step each device has open - another device in follow mode mirrors it."""
+async def set_view(pid: str, stage: str, device: str, scroll: Optional[float] = None, busy: Optional[str] = None,
+                   kind: str = "") -> None:
+    """What each device shows - the step, how far it is scrolled, and any action it is running - so the
+    other devices can mirror it, and a device opened later continues from the same place."""
     if stage not in STAGES:
         return
-    await store.set_fields(pid, view={"stage": stage, "device": device[:40], "at": now_iso()})
+    await store.set_fields(pid, view={"stage": stage, "device": device[:40], "at": now_iso(), "kind": (kind or "")[:12],
+                                      "scroll": None if scroll is None else max(0.0, min(1.0, float(scroll))),
+                                      "busy": (busy or None) and busy[:80]})
+
+
+class PhotoRead(BaseModel):
+    observations: list[str] = Field(description="2-5 short facts visible in the photo that matter for this brief (materials, "
+                                                "colours, rough sizes, fittings, the device model on a label). Sizes are estimates.")
+    caption: str = Field(description="Under 10 words, e.g. 'Alcove between window and door'.")
+
+
+async def add_photo(pid: str, image: tuple[bytes, str], *, kind: str = "space", note: str = "", source: str = "") -> dict[str, Any]:
+    """A photo added mid-project - from the phone via the QR code, the webcam, or the glasses camera. It is
+    stored with the project, read by Gemini against the brief, and becomes the 'space' photo for looks."""
+    kind = kind if kind in ("space", "inspiration", "item", "person", "receipt") else "space"
+    brief = await store.get_brief(pid)
+    if brief is None:
+        b = await start_from_inspiration(pid, text=note, image=image, consent_photo=True, source=source or "photo")
+        return {"ok": True, "started_brief": True, "title": b.title, "must_haves": [r.label for r in b.musts()], "navigate": "clarify"}
+    path = await store.upload_media(f"projects/{pid}/photos/{store.new_id('ph')}", image[0], image[1])
+    read: Optional[PhotoRead] = None
+    try:
+        read, _ = await asyncio.wait_for(gemini.generate_structured(PhotoRead, [
+            types.Part.from_bytes(data=image[0], mime_type=image[1]),
+            f"This is a photo of the customer's {kind}" + (f" ({note})" if note else "") + ". Brief:\n"
+            + brief.model_dump_json(include={"title", "purpose", "requirements"}),
+        ], purpose="photo-read", fast=True), timeout=15)
+    except Exception as e:
+        log.info("photo read skipped: %s", e)
+    project = await store.get_project(pid) or {}
+    insp = dict(project.get("inspiration") or {})
+    entry = {"path": path, "kind": kind, "note": note[:200], "source": source[:40], "at": now_iso(),
+             "caption": read.caption if read else kind.title(), "observations": read.observations if read else []}
+    insp["photos"] = list(insp.get("photos") or [])[-7:] + [entry]
+    if kind == "space" or not insp.get("image_path"):
+        insp["image_path"], insp["generated_image"] = path, False
+    await store.update_project(pid, inspiration=insp)
+    await store.log(pid, "customer", f"Added a photo of the {kind}" + (f" from {source}" if source else ""), kind="capture",
+                    detail="; ".join(entry["observations"])[:400] or None)
+    return {"ok": True, "photo": entry["caption"], "seen": entry["observations"],
+            "note": "Sizes from a photo are estimates - confirm any measurement with the customer before saving it."}
 
 
 async def set_live(pid: str, label: Optional[str], agent: Optional[str] = None, message: Optional[str] = None) -> None:
@@ -1770,7 +1846,17 @@ async def make_look(pid: str, entry_ids: Optional[list[str]] = None, in_space: b
     if entry_ids:
         entries = [e for e in entries if e["item_id"] in entry_ids]
     else:
-        entries = [e for e in entries if e["verdict"] != "not_suitable"][:3]
+        # The best one or two that fit, plus real products that go with them - a whole scene, like a catalogue page.
+        main = [e for e in entries if e["verdict"] in ("meets", "possible_with_change")][:2]
+        brief = await _require_brief(pid)
+        extras = [e for e in entries if e.get("complement")][:3]
+        if len(extras) < 2:
+            from .agents import shopper
+            extras = await shopper.companions(brief, {e["url"].split("?")[0] for e in routes["entries"] if e.get("url")})
+            if extras:
+                routes["entries"] = [e for e in routes["entries"] if not e.get("complement")] + extras
+                await store.put(pid, "routes", "latest", routes)
+        entries = main + extras[: max(0, 5 - len(main))]
     if not entries:
         raise ServiceError("Pick options that have a product photo first.", 409)
     space = await _space_photo(pid) if in_space else None

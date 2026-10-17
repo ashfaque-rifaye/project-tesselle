@@ -5,6 +5,7 @@ import Phone from "./pages/Phone";
 import Glasses from "./pages/Glasses";
 import Share from "./pages/Share";
 import Orders from "./pages/Orders";
+import Capture from "./pages/Capture";
 
 /** The misty light every glass surface is seen against. */
 function Atmosphere() {
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/g/:pid" element={<Glasses />} />
         <Route path="/share" element={<Share />} />
         <Route path="/orders" element={<Orders />} />
+        <Route path="/c/:pid" element={<Capture />} />
         <Route path="*" element={<Hub />} />
       </Routes>
     </>

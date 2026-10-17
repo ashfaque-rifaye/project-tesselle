@@ -89,6 +89,7 @@ async def status() -> dict[str, Any]:
     return {"email": bool(mail and mail.get("address") and mail.get("app_password")),
             "email_address": _mask(mail.get("address")) if mail else None,
             "calls": bool(tw and tw.get("account_sid") and tw.get("auth_token") and tw.get("from_number")),
+            "whatsapp": bool(tw and tw.get("account_sid") and tw.get("auth_token") and tw.get("whatsapp_from")),
             "owner_key_set": bool(await secret("tesselle-owner-key"))}
 
 
@@ -225,6 +226,31 @@ async def valid_signature(url: str, params: dict[str, str], signature: str) -> b
     data = url + "".join(k + params[k] for k in sorted(params))
     digest = base64.b64encode(hmac.new(cfg["auth_token"].encode(), data.encode(), hashlib.sha1).digest()).decode()
     return hmac.compare_digest(digest, signature or "")
+
+
+async def send_whatsapp(to: str, body: str, media_urls: list[str]) -> str:
+    """WhatsApp through Twilio (a WhatsApp Business sender, or the Twilio sandbox for demos). Photos go as media."""
+    cfg = await twilio()
+    if not cfg or not cfg.get("whatsapp_from"):
+        raise RuntimeError("WhatsApp sending isn't connected yet.")
+    sender = cfg["whatsapp_from"] if cfg["whatsapp_from"].startswith("whatsapp:") else "whatsapp:" + cfg["whatsapp_from"]
+    data: list[tuple[str, str]] = [("To", "whatsapp:" + to), ("From", sender), ("Body", body[:1500])]
+    data += [("MediaUrl", u) for u in media_urls[:5]]
+    async with httpx.AsyncClient(timeout=20, auth=(cfg["account_sid"], cfg["auth_token"])) as h:
+        r = await h.post(f"https://api.twilio.com/2010-04-01/Accounts/{cfg['account_sid']}/Messages.json", data=data)
+    if r.status_code >= 300:
+        raise RuntimeError(f"Twilio refused the WhatsApp message: {r.json().get('message', r.text)[:200]}")
+    return r.json()["sid"]
+
+
+async def twilio_media(url: str) -> Optional[tuple[bytes, str]]:
+    """A photo someone sent back on WhatsApp (Twilio media needs the account credentials)."""
+    cfg = await twilio()
+    if not cfg:
+        return None
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True, auth=(cfg["account_sid"], cfg["auth_token"])) as h:
+        r = await h.get(url)
+    return (r.content, r.headers.get("content-type", "image/jpeg").split(";")[0]) if r.status_code == 200 else None
 
 
 def twiml_say_gather(say: str, action: str, hints: str = "") -> str:

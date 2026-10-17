@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, get, post, stream } from "./api";
+import { syncView } from "./sync";
 import type { Line, Project, ProjectState, StreamEvent } from "./types";
 
 export interface Remote { view?: Project["view"]; live?: Project["live"] }
@@ -55,7 +56,7 @@ export function useProject(pid: string | undefined) {
       } catch {
         /* offline: keep the last known state */
       }
-    }, 2000);
+    }, 1500);
     return () => clearInterval(t);
   }, [pid, load]);
 
@@ -64,6 +65,7 @@ export function useProject(pid: string | undefined) {
       setBusy(label);
       setLines([]);
       localAction.current = true;
+      if (pid) syncView(pid, { busy: label }, 0);
       const revBefore = rev.current;
       const recover = async () => {
         // The server saves every step, so a dropped connection is recovered from the saved project state.
@@ -98,6 +100,7 @@ export function useProject(pid: string | undefined) {
       } finally {
         localAction.current = false;
         setBusy(null);
+        if (pid) syncView(pid, { busy: null }, 0);
       }
     },
     [apply, load, toast, pid],

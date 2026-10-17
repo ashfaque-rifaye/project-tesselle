@@ -291,6 +291,7 @@ export interface LookItem {
   x?: number | null;
   y?: number | null;
   verdict?: Verdict;
+  complement?: boolean;
 }
 
 export interface Look {
@@ -385,14 +386,40 @@ export interface Project {
   brief_version: number;
   approved_brief_version?: number | null;
   selected_concept_id?: string | null;
-  inspiration: { text?: string; image_path?: string | null; transcript?: string | null; photo_observations?: string[]; had_audio?: boolean; generated_image?: boolean };
+  inspiration: { text?: string; image_path?: string | null; transcript?: string | null; photo_observations?: string[]; had_audio?: boolean; generated_image?: boolean;
+    photos?: ProjectPhoto[] };
   rev: number;
   archived?: boolean;
-  view?: { stage: Stage; device: string; at: string } | null;
+  view?: { stage: Stage; device: string; at: string; scroll?: number | null; busy?: string | null; kind?: string } | null;
+  layout?: BriefLayout | null;
+  plan_route?: Route | null;
   live?: { label: string; agent?: string | null; message?: string | null; at: string } | null;
   created_at: string;
   updated_at: string;
 }
+
+export type Route = "buy" | "make" | "either" | "source";
+
+export interface ProjectPhoto { path: string; kind: string; note?: string; source?: string; at: string; caption?: string; observations?: string[] }
+
+export interface Facet { label: string; value?: string | null; icon: string; requirement_id?: string | null; ask?: string | null }
+
+/** Shaped by Gemini for each purchase: which facts matter, how requirements group, the likely path. */
+export interface BriefLayout {
+  kind_label: string;
+  icon: string;
+  facets: Facet[];
+  sections: { title: string; requirement_ids: string[] }[];
+  route: Route;
+  route_reason: string;
+  maker_word: string;
+  photo_helps: boolean;
+  photo_prompt?: string | null;
+  show_deadline: boolean;
+  brief_version?: number;
+}
+
+export interface VoiceTurn { id: string; who: "you" | "agent"; text: string; raw_text?: string; audio_path?: string | null; seconds: number; created_at: string; session?: string }
 
 export interface ProjectState {
   project: Project;

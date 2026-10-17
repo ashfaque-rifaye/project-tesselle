@@ -5,7 +5,7 @@ import type { ProjectState } from "../types";
 import MicButton from "./MicButton";
 import { Modal, useToast } from "./ui";
 
-interface ChannelStatus { email: boolean; email_address?: string | null; calls: boolean; owner_key_set: boolean; owner: boolean }
+interface ChannelStatus { email: boolean; email_address?: string | null; calls: boolean; whatsapp?: boolean; owner_key_set: boolean; owner: boolean }
 
 export function useChannels(open = true) {
   const [st, setSt] = useState<ChannelStatus | null>(null);
@@ -26,8 +26,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       <div className="col" style={{ gap: 8 }}>
         <div className="conn-row"><Mail size={16} /><span className="grow">Email (send + read replies + order emails)</span>
           <span className={`chip ${st?.email ? "teal" : "muted"}`}>{st ? (st.email ? `Connected · ${st.email_address}` : "Not connected") : "..."}</span></div>
-        <div className="conn-row">{st?.calls ? <Phone size={16} /> : <PhoneOff size={16} />}<span className="grow">Phone calls by the call agent</span>
+        <div className="conn-row">{st?.calls ? <Phone size={16} /> : <PhoneOff size={16} />}<span className="grow">Real-time AI phone calls (Gemini Live)</span>
           <span className={`chip ${st?.calls ? "teal" : "muted"}`}>{st ? (st.calls ? "Connected" : "Not connected") : "..."}</span></div>
+        <div className="conn-row"><Phone size={16} /><span className="grow">WhatsApp messages and replies</span>
+          <span className={`chip ${st?.whatsapp ? "teal" : "muted"}`}>{st ? (st.whatsapp ? "Connected" : "Opens on your phone") : "..."}</span></div>
         <div className="conn-row"><ShieldCheck size={16} /><span className="grow">This device can use them</span>
           <span className={`chip ${st?.owner ? "teal" : "amber"}`}>{st ? (st.owner ? "Yes - owner key OK" : "Needs the owner key") : "..."}</span></div>
       </div>

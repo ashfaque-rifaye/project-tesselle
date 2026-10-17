@@ -16,5 +16,5 @@ export function withTransition(update: () => void) {
 /** navigate(), but fluid. */
 export function useGo() {
   const nav = useNavigate();
-  return useCallback((to: string) => withTransition(() => nav(to)), [nav]);
+  return useCallback((to: string, opts?: { replace?: boolean }) => withTransition(() => nav(to, opts)), [nav]);
 }

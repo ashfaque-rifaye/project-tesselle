@@ -135,7 +135,7 @@ async def set_requirement(requirement_id: str, label: str, kind: str, tool_conte
     reqs = [r for r in brief.requirements if r.id != requirement_id] + [req]
     updated = await services.edit_brief(pid, services.BriefPatch(requirements=reqs, summary=f"Via assistant: {label} ({req.kind})"),
                                         by="customer (via assistant)")
-    return {"ok": True, "brief_version": updated.version, "navigate": "clarify"}
+    return {"ok": True, "brief_version": updated.version}
 
 
 async def remove_requirement(requirement_id: str, tool_context: ToolContext) -> dict:
@@ -202,8 +202,31 @@ async def add_note(text: str, tool_context: ToolContext) -> dict:
     return {"ok": True}
 
 
+async def ask_for_photo(kind: str, what: str, tool_context: ToolContext) -> dict:
+    """Asks the customer for a photo or short video (kind: space, inspiration, item, person or receipt) and
+    opens the capture sheet: on a computer it shows a QR code to snap it with their phone (or a MetaGlass),
+    plus upload and webcam; on a phone it opens the camera. `what` says what to capture, e.g. "the alcove
+    with a tape measure in view". Use it early when a photo would help; the customer may skip it."""
+    k = kind if kind in ("space", "inspiration", "item", "person", "receipt") else "space"
+    return {"ok": True, "capture": k, "what": what[:160], "note": "The capture sheet is open on their screen. Wait for the photo or a skip."}
+
+
+async def choose_path(path: str, tool_context: ToolContext) -> dict:
+    """Sets how this will most likely be fulfilled, which reshapes the steps on screen: "buy" (ready-made
+    from stores), "make" (made, tailored or printed by a maker), "either", or "source" (bulk from suppliers)."""
+    p = path if path in ("buy", "make", "either", "source") else "either"
+    await store.update_project(_pid(tool_context), plan_route=p)
+    return {"ok": True, "path": p}
+
+
 async def confirm_brief(tool_context: ToolContext) -> dict:
-    """Confirms the brief when the customer says it's right. Fails if a must-have still needs measuring."""
+    """Confirms the brief when the customer says it's right. Fails if a must-have still needs measuring or
+    the delivery city / PIN code is missing (searches only show sellers that deliver there)."""
+    brief = await store.get_brief(_pid(tool_context))
+    if brief is None:
+        return NO_BRIEF
+    if not (brief.delivery.region or brief.delivery.pincode):
+        return {"ok": False, "error": "Ask where it should be delivered (city or PIN code) first, then confirm."}
     try:
         b = await services.confirm_brief(_pid(tool_context))
     except services.ServiceError as e:
@@ -350,7 +373,7 @@ async def remember_preference(preference: str, tool_context: ToolContext) -> dic
 
 
 TOOLS = [get_project_status, go_to_step, start_brief, set_requirement, remove_requirement, set_budget, set_delivery,
-         rename_project, answer_open_question, add_note, confirm_brief, create_concept, find_options, show_look, add_to_picks,
+         rename_project, answer_open_question, add_note, ask_for_photo, choose_path, confirm_brief, create_concept, find_options, show_look, add_to_picks,
          place_order, draft_messages, send_messages, check_replies, remember_preference]
 
 INSTRUCTION = """
@@ -363,9 +386,18 @@ How you work:
 - Do the work, don't describe buttons: record requirements (set_requirement, must vs nice-to-have from their
   words), budget (set_budget), city / PIN code / deadline (set_delivery), answers (answer_open_question),
   notes (add_note). Never infer measurements they didn't give.
-- Move them forward: after each step say in one sentence what happened and offer the next one. If they say
-  "next", "go on" or "do it", do it: confirm_brief, create_concept, find_options, show_look, add_to_picks,
-  draft_messages, place_order, check_replies. Open screens with go_to_step ("back" goes to the previous step).
+- Follow the journey in order and never skip ahead on your own:
+  1) Understand: start_brief, then ask the one or two facts that decide what fits (a size, a model, a quantity,
+     the occasion) - one question at a time. If a photo would help (of the space, the item, an example), offer
+     it early with ask_for_photo; they can skip. Note whether they want it ready-made, made for them, or in
+     bulk (choose_path).
+  2) Make sure you know where it is delivered (city or PIN code) before confirming. Read back the must-haves
+     and confirm_brief only when they agree.
+  3) Then offer a concept picture (create_concept) when it is being made or they want to see it, and search
+     (find_options). Then picks and ordering, or messages to makers.
+  If they say "next", "go on" or "do it", do the next step in that order.
+- The brief panel on screen updates live, so small edits need no screen change. Use go_to_step only when the
+  step really changes, or when they ask ("back" goes to the previous step).
 - Sending messages, calling businesses and placing orders: first say exactly what will happen (who, which
   channel, which items and the total) and wait for a clear "yes"; then call with confirmed=true. Payment is
   always done by the customer on the store - you never pay. Never accept a seller's change to a must-have.
@@ -423,6 +455,9 @@ TOOL_LABELS = {
     "send_messages": "Sending your messages",
     "check_replies": "Checking your inbox for replies",
     "remember_preference": "Remembering that for next time",
+    "ask_for_photo": "Opening the camera and QR code",
+    "save_camera_view": "Saving what your camera sees",
+    "choose_path": "Shaping your steps",
 }
 
 
@@ -452,7 +487,7 @@ async def chat(pid: str, text: str, audio: Optional[tuple[bytes, str]] = None, m
         yield {"type": "heard", "text": text}
         if not text:
             raise services.ServiceError("Sorry, I didn't catch that - try again.")
-    parts = []
+    parts = [types.Part(text=f"({services.today_line()})")]
     if screen:
         parts.append(types.Part(text=f"(The customer is looking at the '{screen}' screen.)"))
     if text:

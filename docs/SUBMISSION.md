@@ -21,7 +21,7 @@ seller quietly change what you need.
 
 Shoppers know exactly what they need, but similar-looking products often miss the one thing that mattered, and
 seller counteroffers quietly rewrite requirements. Project Tesselle captures what you want multimodally (voice with
-live speech-to-text, photos, video, Gemini-imagined concepts, Ray-Ban Meta captures) and Gemini agents turn it into a
+live speech-to-text, photos, video, Gemini-imagined concepts, MetaGlass captures) and Gemini agents turn it into a
 brief you can edit and revert at any step - or you just talk to a real-time Gemini Live voice agent that fills it in
 and drives the app. An ADK graph workflow runs a shopping agent and a maker scout in parallel using Gemini with
 Grounding with Google Search, returning real listings and makers that deliver to your PIN code, each checked against
@@ -66,4 +66,4 @@ always happens on the store (the checkout agent fills carts and pre-enters the P
 Emails and calls go out only after an explicit confirmation and only from a device holding the owner key, so the public
 demo cannot send from the owner's inbox; WhatsApp opens ready to send. The practice reply used in the guided demo is written by
 Gemini and clearly labelled. Smart-glasses capture works through the phone share sheet (PWA share target) and a
-heads-up capture view; direct streaming from Ray-Ban Meta needs Meta's native SDK (roadmap).
+heads-up capture view; direct streaming from MetaGlass needs Meta's native SDK (roadmap).
