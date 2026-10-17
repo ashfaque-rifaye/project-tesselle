@@ -367,7 +367,7 @@ input[type="date"] { color-scheme: dark; }
 .stage-head h2 { font-size: 38px; }
 .stage-head p { color: var(--muted); margin-top: 10px; max-width: 660px; font-size: 14.5px; line-height: 1.6; }
 
-/* ---------- Inspector (MissionLock) ---------- */
+/* ---------- Inspector (your brief) ---------- */
 .intent { padding: 18px 16px 26px; display: flex; flex-direction: column; gap: 16px; }
 .intent-head { display: flex; flex-direction: column; gap: 6px; padding: 0 4px; }
 .intent-head .title { font-family: var(--display); font-size: 22px; font-weight: 500; line-height: 1.18; letter-spacing: -0.03em; }
@@ -434,7 +434,7 @@ input[type="date"] { color-scheme: dark; }
 .msg { max-width: 78%; padding: 10px 14px; border-radius: 20px; font-size: 13.5px; line-height: 1.5; animation: bubble 0.5s var(--spring) both; }
 @keyframes bubble { from { opacity: 0; transform: translateY(8px) scale(0.96); } }
 .msg.customer { align-self: flex-end; background: var(--volt); color: var(--volt-ink); border-bottom-right-radius: 6px; font-weight: 500; }
-.msg.missionlock { align-self: flex-start; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--ink); border-bottom-left-radius: 6px; }
+.msg.assistant { align-self: flex-start; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--ink); border-bottom-left-radius: 6px; }
 .msg.tool { align-self: flex-start; background: none; color: var(--volt); font-family: var(--mono); font-size: 11px; padding: 0 4px; display: flex; gap: 6px; align-items: center; letter-spacing: 0.02em; }
 .msg img { border-radius: 12px; max-width: 220px; margin-top: 6px; }
 .rec { color: var(--red) !important; border-color: rgba(255, 69, 58, 0.5) !important; background: var(--red-soft) !important; animation: pulse 1.4s ease infinite; }

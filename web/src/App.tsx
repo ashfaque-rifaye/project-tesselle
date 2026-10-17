@@ -2,7 +2,6 @@ import { Route, Routes } from "react-router-dom";
 import Hub from "./pages/Hub";
 import Workspace from "./pages/Workspace";
 import Phone from "./pages/Phone";
-import Seller from "./pages/Seller";
 import Glasses from "./pages/Glasses";
 import Share from "./pages/Share";
 
@@ -29,8 +28,6 @@ export default function App() {
         <Route path="/m/:pid" element={<Phone />} />
         <Route path="/g/:pid" element={<Glasses />} />
         <Route path="/share" element={<Share />} />
-        <Route path="/seller" element={<Seller />} />
-        <Route path="/seller/:sellerId" element={<Seller />} />
         <Route path="*" element={<Hub />} />
       </Routes>
     </>

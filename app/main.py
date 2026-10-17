@@ -19,8 +19,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import catalog, config, gemini, identity, services, store
-from .agents import concierge
+from . import config, gemini, identity, services, store
+from .agents import assistant
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("tesselle")
@@ -178,15 +178,14 @@ async def meta():
     return {
         "models": {
             "reasoning": config.MODEL_REASONING,
+            "fast": config.MODEL_FAST,
             "image": config.MODEL_IMAGE,
             "embedding": config.MODEL_EMBED,
             "tts": config.MODEL_TTS,
         },
         "agent_engine": f"projects/{config.PROJECT}/locations/{config.AGENT_ENGINE_LOCATION}/reasoningEngines/{config.AGENT_ENGINE_ID}",
         "region": config.REGION,
-        "catalog_note": catalog.NOTE,
-        "sellers": list(catalog.SELLERS.values()),
-        "demo": catalog.DEMO | {"desk_photo_path": "demo/desk.png"},
+        "demo": services.DEMO,
     }
 
 
@@ -203,12 +202,12 @@ async def create_project(body: NewProject, x_visitor_id: Optional[str] = Header(
     owner = _visitor(x_visitor_id)
     title = "Desk organiser - guided demo" if body.demo else (body.title or "New project")
     p = await store.create_project(owner, title, body.demo)
-    await store.log(p["id"], "system", "Project created" + (" (guided demo with fictional sellers)" if body.demo else ""))
+    await store.log(p["id"], "system", "Project created" + (" (guided demo)" if body.demo else ""))
     if body.demo:
         try:
-            await concierge.seed_demo_memory(owner)
-            await store.log(p["id"], "agent:missionlock", "Demo profile: two preferences from an earlier project are in Memory Bank",
-                            kind="memory", detail="'I rent - no drilling' and 'prefer bamboo or light wood'. Seeded for the guided demo.")
+            await assistant.seed_demo_memory(owner)
+            await store.log(p["id"], "agent:assistant", "Remembered from an earlier project: you rent (no drilling) and like bamboo",
+                            kind="memory", detail="Two preferences saved in Agent Platform Memory Bank for the guided demo profile.")
         except Exception as e:
             log.warning("demo memory seed failed: %s", e)
     return await _state(p["id"])
@@ -256,13 +255,15 @@ async def inspiration(
     voice = await _read(audio)
 
     async def gen():
-        yield {"type": "progress", "message": "MissionLock intake is reading your inspiration (Gemini, multimodal"
-               + (", video" if vid else "") + ")"}
+        what = ", ".join(x for x in ("your words" if text.strip() else "", "photo" if img or image_path else "", "video" if vid else "",
+                                       "voice note" if voice else "") if x) or "what you shared"
+        yield {"type": "progress", "agent": "Brief agent", "message": f"Reading {what}"}
         brief = await services.start_from_inspiration(
             pid, text=text, region=region, image=img, audio=voice, video=vid, image_path=image_path or None,
             source=source[:40], consent_photo=consent_photo, use_demo_photo=use_demo_photo,
         )
-        yield {"type": "progress", "message": f"Draft brief v{brief.version} ready - {len(brief.requirements)} requirements to review"}
+        musts = sum(1 for r in brief.requirements if r.kind == "must")
+        yield {"type": "progress", "agent": "Brief agent", "message": f"Your brief is ready: {musts} must-haves to check"}
         yield {"type": "result", "state": await _state(pid)}
 
     return _ndjson(gen())
@@ -300,7 +301,7 @@ async def glance(
     audio: Optional[UploadFile] = File(None),
 ):
     """Hands-free capture (glasses / phone camera): a photo or clip, optionally with a spoken question.
-    Starts the brief if there is none; otherwise MissionLock answers about the capture. Replies are spoken."""
+    Starts the brief if there is none; otherwise the assistant answers about the capture. Replies are spoken."""
     img, vid = await _media(image, video)
     voice = await _read(audio)
     if not (img or vid or voice or text.strip()):
@@ -312,7 +313,7 @@ async def glance(
             raise services.ServiceError("Project not found.", 404)
         reply = ""
         if not state["briefs"]:
-            yield {"type": "progress", "message": f"New capture from {source} - drafting your brief (Gemini multimodal)"}
+            yield {"type": "progress", "agent": "Brief agent", "message": f"Starting your brief from the {source} capture"}
             brief = await services.start_from_inspiration(
                 pid, text=text, image=img, video=vid, audio=voice, consent_photo=True, source=source[:40]
             )
@@ -324,16 +325,16 @@ async def glance(
                 reply += f"One question: {brief.unknowns[0].question}"
         else:
             what = ("clip" if vid else "photo") if (img or vid) else "question"
-            yield {"type": "progress", "message": f"Sending your {what} to MissionLock"}
+            yield {"type": "progress", "agent": "Assistant", "message": f"Looking at your {what}"}
             media = [m for m in (img, vid) if m]
-            async for ev in concierge.chat(pid, text.strip(), voice, media=media, source=source[:40]):
+            async for ev in assistant.chat(pid, text.strip(), voice, media=media, source=source[:40]):
                 if ev["type"] == "tool":
                     yield {"type": "tool", "message": ev["message"]}
                 if ev["type"] == "done":
                     reply = ev.get("reply") or ""
         audio_url = None
         if speak and reply:
-            yield {"type": "progress", "message": "Speaking the reply (Gemini TTS)"}
+            yield {"type": "progress", "agent": "Assistant", "message": "Speaking the answer"}
             try:
                 audio_url, _ = await gemini.speak(reply[:600])
             except Exception as e:  # speech is a nicety; the text reply stands
@@ -346,6 +347,17 @@ async def glance(
 @app.post("/api/projects/{pid}/brief")
 async def edit_brief(pid: str, patch: services.BriefPatch):
     await services.edit_brief(pid, patch)
+    return await _state(pid)
+
+
+class NewRequirementBody(BaseModel):
+    text: str
+    kind: str = "must"
+
+
+@app.post("/api/projects/{pid}/brief/requirement")
+async def add_requirement(pid: str, body: NewRequirementBody):
+    await services.add_requirement_from_text(pid, body.text, body.kind)
     return await _state(pid)
 
 
@@ -379,10 +391,10 @@ async def concept(pid: str, body: ConceptBody, x_visitor_id: Optional[str] = Hea
         raise services.ServiceError("You've generated a lot of concepts this hour - please try again shortly (credit guard).", 429)
 
     async def gen():
-        yield {"type": "progress", "message": "Studio director (Gemini) is writing the art direction"}
+        yield {"type": "progress", "agent": "Design agent", "message": "Sketching the idea" if not body.instruction else f"Changing it: {body.instruction[:60]}"}
         pin = (body.pin_x, body.pin_y) if body.pin_x is not None and body.pin_y is not None else None
         c = await services.generate_concept(pid, instruction=body.instruction, parent_id=body.parent_id, pin=pin)
-        yield {"type": "progress", "message": f"Rendered concept '{c['caption']}' (Gemini image) - labelled as a concept, not an offer"}
+        yield {"type": "progress", "agent": "Design agent", "message": f"Concept ready: {c['caption']}"}
         yield {"type": "result", "state": await _state(pid)}
 
     return _ndjson(gen())
@@ -406,28 +418,63 @@ async def explore(pid: str):
     return _ndjson(gen())
 
 
-class RequestBody(BaseModel):
-    seller_ids: list[str] = ["kaveri"]
-    include_concept: bool = True
-    include_photo: bool = False
+class OutreachBody(BaseModel):
+    entry_ids: list[str]
     share_budget: bool = True
 
 
 @app.post("/api/projects/{pid}/requests")
-async def draft_request(pid: str, body: RequestBody):
-    await services.draft_request(pid, seller_ids=body.seller_ids, include_concept=body.include_concept,
-                                 include_photo=body.include_photo, share_budget=body.share_budget)
+async def draft_outreach(pid: str, body: OutreachBody):
+    await services.draft_outreach(pid, body.entry_ids, share_budget=body.share_budget)
     return await _state(pid)
 
 
-@app.post("/api/projects/{pid}/requests/{rid}/send")
-async def send_request(pid: str, rid: str):
+class SentBody(BaseModel):
+    entry_id: Optional[str] = None
+
+
+@app.post("/api/projects/{pid}/requests/{rid}/sent")
+async def mark_sent(pid: str, rid: str, body: SentBody):
+    await services.mark_sent(pid, rid, body.entry_id)
+    return await _state(pid)
+
+
+@app.post("/api/projects/{pid}/replies")
+async def add_reply(
+    pid: str,
+    text: str = Form(""),
+    request_id: str = Form(""),
+    seller_name: str = Form(""),
+    entry_id: str = Form(""),
+    image: Optional[UploadFile] = File(None),
+):
+    img = await _read(image)
+
     async def gen():
-        async for ev in services.send_request(pid, rid):
-            if ev["type"] == "result":
-                yield {"type": "result", "state": await _state(pid)}
-            else:
-                yield ev
+        yield {"type": "progress", "agent": "Reply reader", "message": f"Reading {seller_name or 'the'} reply"}
+        q = await services.add_reply(pid, text=text, image=img, request_id=request_id or None, seller_name=seller_name,
+                                     entry_id=entry_id or None)
+        yield {"type": "progress", "agent": "Fit checker",
+               "message": f"{len(q.deviations)} change{'s' if len(q.deviations) != 1 else ''} need your decision" if q.deviations
+               else "The reply keeps every must-have"}
+        yield {"type": "result", "state": await _state(pid)}
+
+    return _ndjson(gen())
+
+
+class SimulateBody(BaseModel):
+    request_id: Optional[str] = None
+
+
+@app.post("/api/projects/{pid}/replies/simulate")
+async def simulate_reply(pid: str, body: SimulateBody):
+    async def gen():
+        yield {"type": "progress", "agent": "Practice reply", "message": "Writing a practice reply from a workshop"}
+        q = await services.simulate_reply(pid, body.request_id)
+        yield {"type": "progress", "agent": "Fit checker",
+               "message": f"{len(q.deviations)} change{'s' if len(q.deviations) != 1 else ''} need your decision" if q.deviations
+               else "The reply keeps every must-have"}
+        yield {"type": "result", "state": await _state(pid)}
 
     return _ndjson(gen())
 
@@ -449,32 +496,34 @@ async def decision(pid: str, qid: str, body: DecisionBody):
     return _ndjson(gen())
 
 
-class ApproveBody(BaseModel):
-    quote_id: str
-    idempotency_key: str
+class ChooseBody(BaseModel):
+    entry_id: Optional[str] = None
+    quote_id: Optional[str] = None
+    idempotency_key: str = ""
     acknowledgements: list[str] = []
 
 
-@app.post("/api/projects/{pid}/approve")
-async def approve(pid: str, body: ApproveBody):
-    await services.approve(pid, body.quote_id, body.idempotency_key, body.acknowledgements)
+@app.post("/api/projects/{pid}/choose")
+async def choose(pid: str, body: ChooseBody):
+    await services.choose(pid, entry_id=body.entry_id, quote_id=body.quote_id, acknowledgements=body.acknowledgements,
+                          idempotency_key=body.idempotency_key)
     return await _state(pid)
 
 
 class AdvanceBody(BaseModel):
-    sample_decision: Optional[str] = None
+    step: Optional[str] = None
 
 
 @app.post("/api/projects/{pid}/order/advance")
 async def advance(pid: str, body: AdvanceBody):
-    await services.advance_order(pid, body.sample_decision)
+    await services.advance_order(pid, body.step)
     return await _state(pid)
 
 
 @app.post("/api/projects/{pid}/delivery-check")
 async def delivery_check(pid: str, use_sample: bool = Form(False), photo: Optional[UploadFile] = File(None)):
     async def gen():
-        yield {"type": "progress", "message": "Delivery inspector (Gemini vision) is comparing the photo with your approved checks"}
+        yield {"type": "progress", "agent": "Delivery inspector", "message": "Comparing the photo with the checks you agreed"}
         await services.delivery_check(pid, await _read(photo), use_sample=use_sample)
         yield {"type": "result", "state": await _state(pid)}
 
@@ -501,6 +550,8 @@ async def recap(pid: str, speak: bool = False):
 async def chat(
     pid: str,
     text: str = Form(""),
+    speak: bool = Form(False),
+    screen: str = Form(""),
     audio: Optional[UploadFile] = File(None),
     image: Optional[UploadFile] = File(None),
     video: Optional[UploadFile] = File(None),
@@ -509,31 +560,30 @@ async def chat(
     img, vid = await _media(image, video)
     if not text.strip() and not a and not img and not vid:
         raise services.ServiceError("Say or type something.")
-    return _ndjson(concierge.chat(pid, text.strip(), a, media=[m for m in (img, vid) if m]))
+    return _ndjson(assistant.chat(pid, text.strip(), a, media=[m for m in (img, vid) if m], speak=speak, screen=screen[:40]))
 
 
 @app.get("/api/projects/{pid}/chat")
 async def chat_history(pid: str):
-    return await concierge.history(pid)
+    return await assistant.history(pid)
 
 
-# ---- Seller workspace (demo makers) ----------------------------------------------------------
+@app.post("/api/transcribe")
+async def transcribe(audio: UploadFile = File(...)):
+    a = await _read(audio)
+    if not a:
+        raise services.ServiceError("No audio received.")
+    return {"text": await services.transcribe(a)}
 
 
-@app.get("/api/seller/{seller_id}/inbox")
-async def seller_inbox(seller_id: str):
-    if seller_id not in catalog.SELLERS:
-        raise HTTPException(404)
-    q = store.db().collection_group("requests")
-    items = []
-    async for snap in q.stream():
-        d = snap.to_dict()
-        if seller_id in d.get("seller_ids", []) and d.get("status") != "draft":
-            pid = snap.reference.parent.parent.id
-            quotes = [x.model_dump() for x in await store.list_quotes(pid) if x.request_id == d["id"] and x.seller_id == seller_id]
-            items.append({"project_id": pid, "request": d, "quotes": quotes})
-    items.sort(key=lambda i: i["request"].get("sent_at", ""), reverse=True)
-    return {"seller": catalog.SELLERS[seller_id], "items": items[:30]}
+class LocateBody(BaseModel):
+    lat: float
+    lng: float
+
+
+@app.post("/api/locate")
+async def locate(body: LocateBody):
+    return await services.locate(body.lat, body.lng)
 
 
 # ---- Media ------------------------------------------------------------------------------------
@@ -541,7 +591,7 @@ async def seller_inbox(seller_id: str):
 
 @app.get("/api/media/{path:path}")
 async def media(path: str):
-    if not path.startswith(("catalog/", "projects/", "demo/")) or ".." in path:
+    if not path.startswith(("projects/", "demo/")) or ".." in path:
         raise HTTPException(404)
     try:
         data, ctype = await store.download_media(path)

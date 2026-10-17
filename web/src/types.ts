@@ -26,6 +26,7 @@ export interface Brief {
   version: number;
   title: string;
   purpose: string;
+  category?: string;
   requirements: Requirement[];
   budget: { target_inr?: number | null; limit_inr?: number | null; share_with_sellers: boolean };
   delivery: { region?: string | null; desired_by?: string | null; essential: boolean };
@@ -70,19 +71,30 @@ export interface Specs {
   features: string[];
   price_inr?: number | null;
   delivery_days?: number | null;
+  attributes?: Record<string, unknown>;
 }
 
 export type Verdict = "meets" | "possible_with_change" | "not_suitable" | "needs_quote";
 
+export interface Contact {
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+}
+
 export interface RouteEntry {
   item_id: string;
-  route: "buy" | "source" | "customise" | "make";
+  route: "buy" | "make";
   name: string;
   description: string;
   seller_id: string;
   seller_name: string;
   seller_label: string;
-  image_path: string;
+  url: string;
+  image_url?: string | null;
+  image_path?: string | null;
+  source_title?: string | null;
+  contact?: Contact;
   specs: Specs;
   stock: string;
   checked_at: string;
@@ -96,35 +108,43 @@ export interface RouteEntry {
   relevance?: number | null;
 }
 
+export interface Source {
+  name: string;
+  domain: string;
+  kind: "store" | "maker";
+}
+
 export interface Routes {
   brief_version: number;
   checked_at: string;
+  city?: string;
   entries: RouteEntry[];
   groups: Record<Verdict, string[]>;
-  sources: string[];
-  narrative: { headline: string; explanation: string; item_notes: { item_id: string; note: string }[]; next_steps: string[] };
+  sources: Source[];
+  narrative: { headline: string; points: string[]; best_next: string; item_notes: { item_id: string; note: string }[] };
   duration_ms: number;
+}
+
+export interface Recipient {
+  entry_id: string;
+  name: string;
+  url?: string | null;
+  contact?: Contact;
+  subject: string;
+  body: string;
+  channels: { mailto?: string | null; whatsapp?: string | null; gmail?: string | null; website?: string | null };
+  status: "draft" | "sent";
+  sent_at?: string;
 }
 
 export interface SellerRequest {
   id: string;
-  seller_ids: string[];
-  seller_names: string[];
+  kind?: string;
   brief_version: number;
-  shared: {
-    title: string;
-    purpose: string;
-    requirements: { id: string; label: string; kind: Kind; status: string }[];
-    budget?: { target_inr?: number; limit_inr?: number } | null;
-    delivery_region?: string | null;
-    concept_image_path?: string | null;
-    photo_included: boolean;
-    not_shared: string[];
-  };
-  summary: string;
-  questions: string[];
+  recipients: Recipient[];
+  seller_names: string[];
   status: "draft" | "sent" | "responded";
-  responses: { seller_id: string; seller_name: string; decision: string; message?: string; quote_id?: string; at: string }[];
+  responses: { seller_name: string; quote_id?: string; at: string }[];
   created_at: string;
   sent_at?: string;
 }
@@ -181,6 +201,8 @@ export interface Quote {
   image_path?: string | null;
   staged: boolean;
   note?: string | null;
+  follow_up?: { subject: string; body: string } | null;
+  to_confirm?: string[];
   created_at: string;
 }
 
@@ -188,21 +210,22 @@ export interface Milestone {
   key: string;
   label: string;
   actor: string;
-  estimate: string;
   state: "done" | "current" | "upcoming";
-  evidence?: string | null;
+  done_at?: string;
 }
 
 export interface Order {
   id: string;
   order_ref: string;
-  sandbox: boolean;
-  quote_id: string;
+  kind: "store" | "maker";
+  entry_id?: string | null;
+  quote_id?: string | null;
   seller_name: string;
+  url?: string | null;
+  image_url?: string | null;
   brief_version: number;
   title: string;
-  specs: Specs;
-  price_lines: PriceLine[];
+  specs?: Specs;
   known_total_inr?: number | null;
   unresolved: string[];
   acceptance_checks: string[];
@@ -214,6 +237,7 @@ export interface Order {
     at: string;
     outcome?: string | null;
     note?: string;
+    sample?: boolean;
   } | null;
   created_at: string;
 }
@@ -244,9 +268,11 @@ export interface NextDecision {
   stage: Stage;
   title: string;
   detail: string;
+  cta?: string;
   quote_id?: string;
   deviation_id?: string;
   severity?: string;
+  count?: number;
 }
 
 export type Stage = "inspire" | "clarify" | "visualise" | "routes" | "request" | "compare" | "approve" | "fulfil" | "accept";
@@ -278,12 +304,21 @@ export interface ProjectState {
   next_decision: NextDecision;
 }
 
+export interface Line {
+  agent?: string;
+  message: string;
+}
+
 export interface StreamEvent {
-  type: "progress" | "tool" | "text" | "result" | "error" | "done";
+  type: "progress" | "tool" | "text" | "result" | "error" | "done" | "ui" | "heartbeat";
   message?: string;
+  agent?: string;
   text?: string;
   name?: string;
   node?: string;
+  navigate?: Stage;
+  reply?: string;
+  audio?: string | null;
   state?: ProjectState;
   details?: string[];
 }

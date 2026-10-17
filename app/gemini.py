@@ -9,6 +9,7 @@ Every model call in Project Tesselle goes through this module so that:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import functools
 import io
@@ -56,6 +57,25 @@ def client() -> genai.Client:
     if not api.vertexai or "aiplatform.googleapis.com" not in base_url:
         raise RuntimeError(f"Gemini client is not on Vertex AI (base_url={base_url!r}); refusing to start.")
     return c
+
+
+@functools.lru_cache(maxsize=1)
+def fast_client() -> genai.Client:
+    """Regional Vertex client for the fast model (same identity, same billing)."""
+    return genai.Client(
+        vertexai=True,
+        project=config.PROJECT,
+        location=config.FAST_LOCATION,
+        credentials=identity.credentials(),
+        http_options=types.HttpOptions(
+            timeout=60_000,
+            retry_options=types.HttpRetryOptions(attempts=3, initial_delay=1.0, max_delay=8.0, http_status_codes=[429, 500, 503, 504]),
+        ),
+    )
+
+
+def fast_thinking() -> types.ThinkingConfig:
+    return types.ThinkingConfig(thinking_budget=0)
 
 
 def labels(purpose: str) -> dict[str, str]:
@@ -117,23 +137,52 @@ async def generate_structured(
     system: str | None = None,
     thinking: str = "low",
     temperature: float | None = None,
+    fast: bool = False,
 ) -> tuple[T, CallStats]:
-    """Gemini call with a Pydantic response schema (controlled generation)."""
+    """Gemini call with a Pydantic response schema (controlled generation).
+
+    fast=True uses the fast regional model directly; otherwise the primary model is tried first and
+    the fast model takes over if it is slow or rate-limited."""
     _guard("llm")
-    started = time.perf_counter()
-    cfg = types.GenerateContentConfig(
-        system_instruction=system,
-        response_mime_type="application/json",
-        response_schema=schema,
-        labels=labels(purpose),
-        thinking_config=types.ThinkingConfig(thinking_level=thinking),
-        temperature=temperature,
-    )
-    resp = await client().aio.models.generate_content(
-        model=config.MODEL_REASONING, contents=contents, config=cfg
-    )
-    parsed = resp.parsed if isinstance(resp.parsed, schema) else schema.model_validate_json(resp.text)
-    return parsed, _stats(config.MODEL_REASONING, purpose, started, resp.usage_metadata)
+
+    async def call(fast_model: bool) -> tuple[T, CallStats]:
+        started = time.perf_counter()
+        cfg = types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            response_schema=schema,
+            labels=labels(purpose),
+            thinking_config=fast_thinking() if fast_model else types.ThinkingConfig(thinking_level=thinking),
+            temperature=temperature,
+        )
+        c, m = (fast_client(), config.MODEL_FAST) if fast_model else (client(), config.MODEL_REASONING)
+        resp = await c.aio.models.generate_content(model=m, contents=contents, config=cfg)
+        parsed = resp.parsed if isinstance(resp.parsed, schema) else schema.model_validate_json(resp.text)
+        return parsed, _stats(m, purpose, started, resp.usage_metadata)
+
+    if fast:
+        return await call(True)
+    primary = asyncio.create_task(call(False))
+    done, _ = await asyncio.wait({primary}, timeout=20)
+    if done and primary.exception() is None:
+        return primary.result()
+    log.warning("%s: primary model slow or unavailable - also asking %s", purpose, config.MODEL_FAST)
+    backup = asyncio.create_task(call(True))
+    pending = {backup} if done else {primary, backup}
+    last: BaseException | None = primary.exception() if done else None
+    while pending:
+        finished, pending = await asyncio.wait(pending, timeout=90, return_when=asyncio.FIRST_COMPLETED)
+        if not finished:
+            break
+        for t in finished:
+            if t.exception() is None:
+                for other in pending:
+                    other.cancel()
+                return t.result()
+            last = t.exception()
+    for t in pending:
+        t.cancel()
+    raise last or TimeoutError(f"{purpose}: no model answered")
 
 
 async def generate_text(

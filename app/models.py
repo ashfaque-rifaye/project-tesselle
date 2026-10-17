@@ -1,4 +1,4 @@
-"""MissionLock domain model: the versioned customer brief, offers, quotes and decisions.
+"""Tesselle domain model: the versioned customer brief, offers, quotes and decisions.
 
 Customer-facing vocabulary (blueprint §04): a `must` requirement is shown as "Must stay the same",
 a `flexible` one as "Flexible", status `needs_checking` as "Needs checking".
@@ -7,7 +7,7 @@ a `flexible` one as "Flexible", status `needs_checking` as "Needs checking".
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,16 +16,21 @@ ReqStatus = Literal["confirmed", "needs_checking"]
 Source = Literal["customer", "photo_estimate", "assistant", "seller"]
 Op = Literal["<=", ">=", "==", "!=", "in", "not_in", "has", "text"]
 
-# Structured attributes the deterministic guard can check against product specs.
+# Structured attributes the deterministic guard can check against product specs. Any other short
+# snake_case key (e.g. "screen_size_in", "fabric") is allowed too and is read from Specs.attributes.
 ATTRIBUTES = [
     "depth_cm",
     "width_cm",
     "height_cm",
+    "weight_kg",
     "price_inr",
     "mounting",
     "material",
     "finish",
-    "compartments",
+    "color",
+    "size",
+    "compatible_with",
+    "capacity",
     "features",
     "delivery_days",
 ]
@@ -41,7 +46,8 @@ class Requirement(BaseModel):
     kind: Kind = Field(description="'must' = cannot change without explicit approval; 'flexible' = may be traded off.")
     attribute: Optional[str] = Field(
         default=None,
-        description="One of: " + ", ".join(ATTRIBUTES) + ". Null for purely qualitative requirements.",
+        description="Prefer one of: " + ", ".join(ATTRIBUTES) + " (or another short snake_case key). "
+        "Null for purely qualitative requirements.",
     )
     op: Optional[Op] = Field(default=None, description="Comparison operator for the attribute.")
     value_num: Optional[float] = Field(default=None, description="Numeric value for <=, >=, ==, != comparisons.")
@@ -78,7 +84,7 @@ class Brief(BaseModel):
     version: int = 1
     title: str = "Untitled project"
     purpose: str = ""
-    category: str = "desk-organiser"
+    category: str = "general"
     requirements: list[Requirement] = Field(default_factory=list)
     budget: Budget = Field(default_factory=Budget)
     delivery: Delivery = Field(default_factory=Delivery)
@@ -111,6 +117,7 @@ class Specs(BaseModel):
     features: list[str] = Field(default_factory=list)
     price_inr: Optional[float] = None
     delivery_days: Optional[float] = None
+    attributes: dict[str, Any] = Field(default_factory=dict, description="Any other stated property, by requirement attribute key.")
 
 
 class Check(BaseModel):
@@ -182,4 +189,5 @@ class Quote(BaseModel):
     staged: bool = True
     layout_description: Optional[str] = None
     note: Optional[str] = None
+    follow_up: Optional[dict] = Field(default=None, description="Drafted reply to the seller after a decision.")
     created_at: str = Field(default_factory=now_iso)

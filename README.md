@@ -2,14 +2,14 @@
 
 **Imagine it. Keep what matters. Get it made.**
 
-Project Tesselle is a personal commerce agent for the **Retail & Commerce** theme of the Google Cloud AI
-Builder Cup 2026. It turns an inspiration — words, a voice note, a photo of your space, a short video, an
-AI-imagined concept or a capture from smart glasses — into a clear, versioned brief. It then checks what
-can really be **bought, sourced, customised or made**, negotiates with makers, and carries the same
-brief through approval, fulfilment and the delivery check.
+Project Tesselle is a personal shopping agent for the **Retail & Commerce** theme of the Google Cloud AI Builder
+Cup 2026 - built for purchases that have to *fit*: a space, a device, a person, an occasion or a deadline.
 
-Its heart is **MissionLock**: language models propose, deterministic code decides. No seller, substitute
-or shortcut can silently change a requirement the customer said must stay the same.
+Tell it what you want in words, a voice note, a photo, a short video, an AI-imagined picture or a capture from
+smart glasses. Gemini agents turn that into a brief you can edit at any time, search **real stores** and **real
+makers** that deliver to you, check every option against your must-haves, write the messages you send to makers,
+read their replies, and stop any seller change to a must-have until *you* decide. The same brief carries through
+choosing, tracking and a delivery check.
 
 | | |
 |---|---|
@@ -17,122 +17,124 @@ or shortcut can silently change a requirement the customer said must stay the sa
 | **Live app / API (Cloud Run)** | https://tesselle-448771854429.asia-southeast1.run.app |
 | **Source code** | https://github.com/ashfaque-rifaye/project-tesselle |
 | **Pitch deck** | [`deck/Project-Tesselle-Pitch-Deck.pdf`](deck/Project-Tesselle-Pitch-Deck.pdf) |
-| **Guided demo** | Open the app → *Launch the guided demo* (about 5 minutes, no sign-up) |
+| **Guided demo** | Open the app → *Launch the guided demo* - it runs itself, live (about 8 minutes) |
 
-> Demonstration honesty: every seller, price, stock level and maker response is **fictional demo data**
-> (maker replies are AI-simulated and labelled); orders are **sandbox** — nothing is bought or shipped.
+> Honesty: listings and makers come from **live web search** and link to their real pages; prices and stock can
+> change, so the app says "check the store page". Tesselle never pays, orders or sends messages for you. The
+> "practice reply" in the demo is written by Gemini and labelled as such - it never pretends to be a real business.
 
 ---
 
-## The story it proves (10 beats)
+## The journey
 
-1. **Inspiration** — a desk photo + "organiser for pens, phone and an A5 notebook… shelf leaves 18 cm… I rent, no drilling… around ₹3,000".
-2. **Intent** — Gemini drafts a brief; the customer confirms *Must stay the same* (18 cm max depth, no drilling, pen cup, phone slot, notebook tray) vs *Flexible* (bamboo).
-3. **Concept** — a labelled concept render; click-to-pin visual refinements that never silently edit the brief.
-4. **Existing stock** — a beautiful bamboo station is **rejected: 22 cm deep**. "No suitable match found in the sources checked."
-5. **Maker request** — the customer reviews exactly what the maker receives (no name, no address, no home photo).
-6. **Counteroffer** — the maker proposes its standard **20 cm** jig → MissionLock **blocks** it.
-7. **Resolution** — customer keeps 18 cm → maker revises the layout at **16 cm**; a small price rise is a flexible decision.
-8. **Device handoff** — QR → the phone opens the same pending decision with a spoken recap.
-9. **Approval** — exact spec + quote + brief version; idempotent **sandbox** order; stale quotes are blocked.
-10. **Aftercare** — Gemini vision checks the delivery photo against the approved acceptance checks ("measure the depth — a photo can't prove 18 cm").
+1. **Start** - "How do you want to start?": describe it (type or talk - words appear as you speak), show a photo
+   or video, use the camera, imagine it with Gemini, or capture from Ray-Ban Meta glasses. Delivery city from your
+   location or a saved place.
+2. **Your brief** - the brief agent writes must-haves vs nice-to-haves (e.g. "max depth 18 cm", "no drilling");
+   sizes seen in a photo stay "measure to confirm". Everything is editable in the side panel or by voice, at any step.
+3. **Visualise** (optional) - a labelled concept; tap the picture to point at what to change.
+4. **Options** - the **shopping agent** finds real listings (IKEA, Flipkart, Amazon.in, Pepperfry, brand stores...)
+   and the **maker scout** finds real workshops and made-to-order services near you. The **fit checker** (plain code)
+   marks each one *fits / check a detail / doesn't fit*; a short summary says what was found.
+5. **Reach out** - the **outreach agent** writes the message; you send it from Gmail, your mail app or WhatsApp.
+6. **Replies** - paste a reply or drop a screenshot; the **reply reader** extracts the offer and the fit checker
+   compares it with your brief. A change to a must-have (e.g. a 20 cm jig for an 18 cm shelf) is **blocked** until
+   you decide; keeping it drafts your follow-up.
+7. **Choose** - one option, one brief version; anything unconfirmed needs an explicit tick.
+8. **Track** - buy directly from the seller; mark ordered / arrived from any device.
+9. **Delivery check** - Gemini vision compares a photo with the checks you agreed, and says what a photo can't prove.
 
-`tools/e2e_storyboard.py <url>` runs all ten beats against a live deployment and asserts every guarantee.
+`tools/e2e_storyboard.py <url>` runs the journey against a deployment and asserts the guarantees.
 
 ## Gen AI implementation
 
-| Capability | How |
+| Agent / capability | How |
 |---|---|
-| **Multimodal intake** | ADK `LlmAgent` on **Gemini 3.8 Flash** with a typed output schema; inputs: text, voice (audio), photos, **video**, generated images. Photo-derived sizes are always `needs_checking`. |
-| **MissionLock guard** | `app/missionlock.py` — deterministic requirement checks, fit verdicts (*meets / possible with a change / not suitable*), quote deviations, readiness and approval gates. LLMs only *explain* verdicts. |
-| **Route explorer** | **ADK 2 graph `Workflow`**: `prepare → (catalog_scout ‖ sourcing_scout ‖ maker_scout) → JoinNode → analyst`. Catalog scout uses **Firestore vector search** over **Gemini embeddings**. |
-| **Creative studio** | Gemini (art director agent) writes the prompt; **Gemini image generation** renders/edits concepts, with click-to-pin visual prompting (a ring drawn onto the reference image). Flags visual edits that would affect the brief. |
-| **Maker negotiation** | AI-simulated fictional maker agent with a capability profile; quotes are tied to a brief version; a **deviation explainer** agent writes decision cards. |
-| **Concierge** | Conversational MissionLock agent with function tools (edit requirements, budget, answer questions, refine concept, explore routes, remember preferences) — the same guarded services as the UI buttons. |
-| **Memory** | **Agent Platform Sessions** (per-project conversation across devices) and **Agent Platform Memory Bank** (durable preferences such as "I rent — no drilling"), via `PreloadMemoryTool`. |
-| **Glasses & phone capture** | Heads-up capture view (live camera, photo/clip, voice question) → `/glance` → Gemini answers about the capture → **Gemini TTS** speaks the reply. Installable PWA with a **share target** so Ray-Ban Meta photos/clips can be shared straight to the agent. |
-| **Delivery inspector** | Gemini vision compares the delivery photo with the approved checklist; says what a photo cannot prove. |
-| **Recap** | Recap agent + Gemini TTS for "where you left off" on the phone surface. |
-| **Evidence trace** | Every agent step is logged with model, latency and tokens in the in-app *Evidence & agent trace*; ADK OpenTelemetry spans go to **Cloud Trace**. |
+| **Brief agent** | ADK `LlmAgent` on **Gemini 3.8 Flash**, typed output schema; inputs: text, voice, photos, **video**, generated images. |
+| **Shopping agent + maker scout** | **ADK 2 graph `Workflow`**: `prepare → (shopping_agent ‖ maker_scout) → JoinNode → advisor`. Both use **Gemini with Grounding with Google Search**; each result line is tied to its cited page (grounding supports), the redirect is resolved to the real product or maker page, and the page's preview image is used. **Gemini Embedding 2** ranks results by relevance. |
+| **Fit checker** | `app/guard.py` - deterministic requirement checks, verdicts, quote deviations and choose gates. LLMs only *explain* verdicts. |
+| **Advisor** | Short, plain-language summary (headline, 2-4 bullets, best next step). |
+| **Design agent** | Writes the art direction; **Gemini image generation** draws concepts, with tap-to-point refinements. |
+| **Outreach agent** | Drafts quote requests and follow-ups the customer sends themselves (only the brief is shared). |
+| **Reply reader** | Turns a pasted reply, screenshot or PDF into a structured offer; decision cards explain any change. |
+| **Assistant (voice)** | ADK agent with tools that act on the project (edit brief, budget, city, confirm, draw, find options, draft messages) and **navigate the app**; live speech-to-text, spoken replies with **Gemini TTS**; **Agent Platform Sessions + Memory Bank** keep one conversation across desktop, phone and glasses. |
+| **Delivery inspector** | Gemini vision compares a delivery photo with the agreed checklist. |
+| **Self-running guided demo** | The app drives itself through the real journey (live agents, live web search) with captions and narration. |
+| **Resilience** | Primary model with automatic fallback to **Gemini 2.5 Flash** in `asia-southeast1`; hedged grounded search; deterministic summaries if an explainer is slow. |
+| **Activity** | Every agent step in plain words, with model/latency/tokens one tap away; ADK OpenTelemetry spans go to **Cloud Trace**. |
 
 ## Experience design
 
-A liquid-glass design system ("Mist & Volt"), inspired by iOS/macOS materials: frosted glass surfaces over a misty,
-Gemini-generated forest-studio scene, one volt accent for the next action, and system colours for status (green
-confirmed, amber needs you, red blocked — always with text and an icon).
+A liquid-glass design system ("Mist & Volt"): frosted glass over a misty, Gemini-generated forest-studio scene, one
+volt accent for the next action, iOS-style status colours (always with text and an icon), capsule controls and
+spring motion.
 
-- **Cinematic home** — the hero scene is generated with Gemini 3.1 Flash Image; a faceted **Three.js glass gem**
-  (real transmission/refraction) floats in the fog, and a live *mission card* replays the demo story like a
-  shipment tracker.
-- **Tracked, not trusted** — a lit stage tracker, a Dynamic-Island-style status pill that expands while agents
-  work (with an edge glow), an **intent-integrity gauge** (must-haves locked / at risk), fit-grade rings on every
-  route, and big-number quote stats.
-- **Fluid motion** — spring easing, View Transitions between stages, a glass sheen that follows the pointer, and a
-  floating composer dock that raises the MissionLock conversation or the evidence trace as a sheet.
-- **One system everywhere** — workspace, phone (iPhone-style surface with a tab bar), glasses HUD, seller and share
-  pages, the pitch deck and the demo video all use the same palette and materials.
+- **Always clear what's next** - a sticky Next bar on every step; the step's main action lives there.
+- **See the agents work** - a Dynamic-Island status pill says which Gemini agent is doing what, right now.
+- **Your brief, editable everywhere** - budget, city, deadline, must-haves and nice-to-haves, at any step.
+- **Calm by default** - a hideable step rail, a round Activity icon, an assistant button in the corner.
+- **One project, every device** - phone app (Home, Capture, Assistant, Activity), glasses HUD and the Ray-Ban Meta
+  share target all work on the same project in real time.
 
 ## Google Cloud stack
 
-- **Vertex AI / Agent Platform** (`aiplatform.googleapis.com`) — Gemini 3.8 Flash, Gemini 3.1 Flash Image (+ first-party fallbacks), Gemini Embedding 2, Gemini 2.5 Flash TTS; Agent Runtime with **Sessions** and **Memory Bank** (`asia-southeast1`).
-- **Google ADK 2.12** — `LlmAgent`s with output schemas and tools, graph `Workflow` with parallel fan-out and `JoinNode`, `Runner`, Vertex session & memory services, OpenTelemetry tracing.
-- **Cloud Run** — FastAPI + ADK backend and the web app, streaming NDJSON progress (scale-to-zero, capped instances).
-- **Firebase Hosting** — global CDN for the web app; API calls go straight to Cloud Run.
-- **Firestore** (Native) — projects, immutable brief versions, quotes, orders, event log, and the **vector index** for catalogue search.
-- **Cloud Storage** — private media bucket (inspirations, concepts, proposals, evidence), served through the API.
-- **Cloud Build + Artifact Registry** — container builds; **Cloud Logging + Cloud Trace** — operations.
-- **Identity** — a dedicated runtime service account with least-privilege roles. **No API keys anywhere**; the app refuses to start if Gemini is not on Vertex AI.
+- **Vertex AI / Agent Platform** (`aiplatform.googleapis.com`) - Gemini 3.8 Flash, Gemini 2.5 Flash (regional fast path and
+  fallback), **Grounding with Google Search**, Gemini 3.1 Flash Image, Gemini Embedding 2, Gemini 2.5 Flash TTS; Agent
+  Runtime with **Sessions** and **Memory Bank** (`asia-southeast1`).
+- **Google ADK 2.12** - `LlmAgent`s with output schemas and tools, graph `Workflow` with parallel fan-out and `JoinNode`,
+  `Runner`, Vertex session & memory services, OpenTelemetry.
+- **Cloud Run** - FastAPI + ADK backend and the web app, streaming NDJSON progress.
+- **Firebase Hosting** - global CDN for the web app; API calls go straight to Cloud Run.
+- **Firestore** - projects, immutable brief versions, options, messages, quotes, choices, activity log.
+- **Cloud Storage** - private media bucket, served through the API.
+- **Cloud Build + Artifact Registry**, **Cloud Logging + Cloud Trace** (OTLP via the Telemetry API).
+- **Identity** - one least-privilege runtime service account. **No API keys anywhere**; the app refuses to start if
+  Gemini is not on Vertex AI.
 
 ## Architecture
 
 ```
-Browser (React + Three.js, PWA share target)          Phone / glasses capture
+Browser (React + Three.js, PWA share target)          Phone app / glasses capture
         │  Firebase Hosting (CDN)                             │
         └──────────────► Cloud Run: FastAPI ◄─────────────────┘
                            │  ADK agents + graph Workflow
-                           │  MissionLock guard (deterministic)
-        ┌──────────────────┼───────────────────────────┬────────────────────┐
-  Vertex AI Gemini   Agent Platform              Firestore             Cloud Storage
-  (text, vision,     Sessions + Memory Bank      (+ vector search)     (media)
-   video, image,
+                           │  fit checker (deterministic)
+        ┌──────────────────┼────────────────────────────┬────────────────────┐
+  Vertex AI Gemini   Agent Platform               Firestore             Cloud Storage
+  (+ Google Search   Sessions + Memory Bank       (state, versions)     (media)
+   grounding, image,
    embeddings, TTS)
 ```
 
 ## Repository
 
 ```
-app/                FastAPI app, services, MissionLock guard, Firestore/Storage, Vertex client
-app/agents/         ADK agents (intake, studio, route analyst, maker, deviation, recap, inspector, concierge)
-                    and the route-explorer graph Workflow
-app/data/           Fictional demonstration catalogue
-web/                React + TypeScript + Three.js front end (workspace, phone, glasses, seller, share)
-tools/              Provisioning, catalogue seeding, end-to-end storyboard test, credit check, video tooling
+app/                FastAPI app, services, fit checker (guard.py), Firestore/Storage, Vertex clients
+app/agents/         ADK agents (brief, design, shopper + maker scout, advisor, outreach, reply reader,
+                    decision writer, recap, inspector, assistant) and the find-options graph Workflow
+web/                React + TypeScript + Three.js front end (workspace, phone app, glasses HUD, share)
+tools/              Provisioning, end-to-end test, credit check, brand media, video tooling
 docs/               Hackathon brief and the product experience blueprint
 ```
 
 ## Run it
 
 ```bash
-# Backend (uses your ADC, impersonating the runtime service account)
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 TESSELLE_IMPERSONATE=tesselle-runtime@<project>.iam.gserviceaccount.com uvicorn app.main:app --port 8080
-# Front end
 cd web && npm install && npm run dev
-# One-time setup
-python tools/provision_agent_platform.py     # Agent Runtime with Sessions + Memory Bank
-python -m tools.seed_catalog                 # Gemini-rendered catalogue + embeddings
-# Deploy
+python tools/provision_agent_platform.py     # Agent Runtime with Sessions + Memory Bank (one-time)
 gcloud builds submit --config cloudbuild.yaml && gcloud run deploy tesselle --image .../tesselle/app:<tag>
 firebase deploy --only hosting
 ```
 
 ## Responsible design
 
-- Concepts, existing products, supplier proposals and samples always carry distinct labels.
-- Must-haves can only change through an explicit, labelled decision that creates a new brief version.
-- Unknown charges are shown as "Not yet known" and never folded into a misleading total.
-- Photos/videos are used only for the project; sellers receive a privacy-filtered brief.
-- The concierge cannot send requests, accept seller changes or approve spending.
-- A public-demo cost guard caps daily model and image calls.
+- Must-haves change only through an explicit decision that creates a new brief version; sellers can propose, never overwrite.
+- Every listing links to its real page; prices and stock are labelled "check the store page".
+- Unknown charges are never folded into a total; unconfirmed must-haves need an explicit tick before choosing.
+- Sellers receive only the brief - never your name, number, address or photos.
+- Tesselle never pays, orders or sends messages for you; the assistant can't accept seller changes or choose for you.
+- Concept and practice content is always labelled; a cost guard caps daily model and image calls.
 
 Built for the Google Cloud AI Builder Cup 2026 (Hack2Skill).

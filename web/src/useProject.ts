@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, get, post, stream } from "./api";
-import type { ProjectState, StreamEvent } from "./types";
+import type { Line, ProjectState, StreamEvent } from "./types";
 import { useToast } from "./components/ui";
 
 /** Loads a project, keeps it fresh across devices (cheap rev polling), and runs actions with
- *  honest progress lines. Every surface (desktop, phone, seller) uses this one hook. */
+ *  honest progress lines. Every surface (desktop, phone, glasses) uses this one hook. */
 export function useProject(pid: string | undefined) {
   const [state, setState] = useState<ProjectState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [lines, setLines] = useState<string[]>([]);
+  const [lines, setLines] = useState<Line[]>([]);
   const [remoteChange, setRemoteChange] = useState(false);
   const rev = useRef(0);
   const localAction = useRef(false);
@@ -72,7 +72,7 @@ export function useProject(pid: string | undefined) {
       };
       try {
         let s = await fn((e) => {
-          if ((e.type === "progress" || e.type === "tool") && e.message) setLines((l) => [...l, e.message!]);
+          if ((e.type === "progress" || e.type === "tool") && e.message) setLines((l) => [...l, { agent: e.agent, message: e.message! }]);
         });
         if (!s) s = await recover();
         apply(s);

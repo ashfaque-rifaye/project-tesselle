@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight, ArrowUpRight, Ban, Camera, Check, Glasses, ImagePlus, Loader2, Lock, Mic, PackageCheck, PlayCircle, ShieldCheck,
-  Sparkles, Store, X,
+  Sparkles, X,
 } from "lucide-react";
 import { ago, get, post } from "../api";
 import HeroScene from "../components/HeroScene";
@@ -23,25 +23,25 @@ const FIRST_VISIT = (() => {
 })();
 
 const STORY: { tone: string; icon: ReactNode; text: string; pct: number }[] = [
-  { tone: "info", icon: <Camera />, text: "Desk photo and voice note captured", pct: 0.12 },
-  { tone: "ok", icon: <Lock />, text: "Brief confirmed · 4 must-haves locked", pct: 0.26 },
-  { tone: "bad", icon: <X />, text: "Atelier station is 22 cm deep · rejected", pct: 0.44 },
+  { tone: "info", icon: <Camera />, text: "Desk photo and a sentence, read by Gemini", pct: 0.12 },
+  { tone: "ok", icon: <Lock />, text: "Brief ready · 5 must-haves kept", pct: 0.26 },
+  { tone: "bad", icon: <X />, text: "A 22 cm-deep listing · doesn't fit", pct: 0.44 },
   { tone: "bad", icon: <Ban />, text: "Maker proposes 20 cm · blocked", pct: 0.6 },
-  { tone: "ok", icon: <Check />, text: "Kept 18 cm · layout revised to 16 cm", pct: 0.8 },
-  { tone: "ok", icon: <PackageCheck />, text: "Sandbox order approved · delivery checked", pct: 1 },
+  { tone: "ok", icon: <Check />, text: "You kept 18 cm · the new offer fits", pct: 0.8 },
+  { tone: "ok", icon: <PackageCheck />, text: "Chosen · delivery checked by Gemini", pct: 1 },
 ];
 
 const STACK = [
   ["Model", "Gemini 3.8 Flash", "Reasoning plus image, audio and video understanding."],
-  ["Image", "Gemini 3.1 Flash Image", "Concepts, maker proposals and this page's scenery."],
-  ["Agents", "Google ADK 2", "Nine specialist agents and a parallel graph Workflow."],
+  ["Image", "Gemini 3.1 Flash Image", "Concepts, imagine-it pictures and this page's scenery."],
+  ["Agents", "Google ADK 2", "Specialist agents and a parallel graph Workflow."],
   ["Memory", "Agent Platform", "Sessions and Memory Bank across every device."],
-  ["Search", "Firestore vectors", "Gemini Embedding 2 over the sample catalogue."],
+  ["Search", "Grounding with Google Search", "Gemini finds real listings and makers, live."],
   ["Voice", "Gemini TTS", "Spoken replies, recaps and glasses answers."],
   ["Run", "Cloud Run + Firebase", "Streaming agent progress on a global CDN."],
   ["Ops", "Cloud Trace + Logging", "Every agent step traced end to end."],
 ];
-const CHIPS = ["Gemini on Vertex AI", "ADK Workflow · JoinNode", "Agent Platform Sessions", "Memory Bank", "Firestore vector search", "Gemini Embedding 2",
+const CHIPS = ["Gemini on Vertex AI", "ADK Workflow · JoinNode", "Agent Platform Sessions", "Memory Bank", "Grounding with Google Search", "Gemini Embedding 2 ranking",
   "Gemini TTS", "Cloud Run", "Firebase Hosting", "Cloud Storage", "Cloud Build", "Artifact Registry", "Cloud Trace", "IAM · no API keys"];
 
 function useReveal() {
@@ -94,16 +94,16 @@ function MissionCard({ onLaunch, busy }: { onLaunch: () => void; busy: boolean }
   return (
     <div className="mission glass">
       <div className="row between">
-        <span className="chip volt"><span className="dot live" /> MissionLock · live replay</span>
-        <span className="chip muted">v3</span>
+        <span className="chip volt"><span className="dot live" /> Live replay</span>
+        <span className="chip muted">Brief v1</span>
       </div>
       <div>
         <div className="ttl">Bamboo desk organiser</div>
-        <div className="tiny muted" style={{ marginTop: 4 }}>Kaveri Woodcraft · make route · Chennai</div>
+        <div className="tiny muted" style={{ marginTop: 4 }}>Shopping agent · Chennai</div>
       </div>
       <div className="two">
         <div className="cell"><div className="k">Depth</div><div className="v"><Lock size={13} color="var(--volt)" /> ≤ 18 cm</div></div>
-        <div className="cell"><div className="k">Budget</div><div className="v">₹6,500 target</div></div>
+        <div className="cell"><div className="k">Budget</div><div className="v">₹3,000 target</div></div>
       </div>
       <RouteBar from="Spark" to="Doorstep" value={pct} note={`${Math.round(pct * 100)}%`} />
       <div className="feed" aria-live="off">
@@ -112,7 +112,7 @@ function MissionCard({ onLaunch, busy }: { onLaunch: () => void; busy: boolean }
         ))}
       </div>
       <div className="row between">
-        <div className="price"><b>₹5,890</b><span className="tiny muted">known · sandbox</span></div>
+        <div className="price"><b>₹3,350</b><span className="tiny muted">quoted · you buy direct</span></div>
         <button className="btn light sm" onClick={onLaunch} disabled={busy}>Try this journey <ArrowRight size={14} /></button>
       </div>
     </div>
@@ -136,7 +136,7 @@ export default function Hub() {
     setCreating(label);
     try {
       const s = await post<ProjectState>("/api/projects", { demo, title: "New project" });
-      go(next === "glasses" ? `/g/${s.project.id}` : `/p/${s.project.id}/inspire${next !== "inspire" ? `?mode=${next}` : ""}`);
+      go(next === "glasses" ? `/g/${s.project.id}` : `/p/${s.project.id}/inspire${demo ? "?autoplay=1" : next !== "inspire" ? `?mode=${next}` : ""}`);
     } catch (e) {
       toast((e as Error).message, true);
       setCreating(null);
@@ -160,12 +160,11 @@ export default function Hub() {
           <nav className="hero-nav">
             <a href="/" className="brand" aria-label="Project Tesselle home">
               <img className="mark" src="/favicon.svg" alt="" />
-              <span className="col" style={{ gap: 0 }}><span className="name">Tesselle</span><span className="sub">Project · MissionLock</span></span>
+              <span className="col" style={{ gap: 0 }}><span className="name">Tesselle</span><span className="sub">Your shopping agent</span></span>
             </a>
             <div className="links glass">
-              <a href="#capture">Capture</a><a href="#missionlock">MissionLock</a><a href="#glasses">Glasses</a><a href="#devices">Continuity</a><a href="#stack">Google stack</a>
+              <a href="#capture">Capture</a><a href="#protect">Must-haves</a><a href="#glasses">Glasses</a><a href="#devices">Continuity</a><a href="#stack">Google stack</a>
             </div>
-            <a className="btn sm ghost hidden-sm" href="/seller/kaveri"><Store size={14} /> Seller</a>
             <button className="btn sm light" onClick={() => create(true, "demo")} disabled={!!creating}>{spin("demo", <PlayCircle size={14} />)} Guided demo</button>
           </nav>
 
@@ -180,14 +179,14 @@ export default function Hub() {
           <div className="hero-bottom">
             <p>
               Show Tesselle a photo, a voice note or a glance through your glasses. It turns the spark into a brief you confirm, checks what can
-              really be bought, sourced or made - and <b>MissionLock</b> makes sure nothing quietly changes what you asked for.
+              be bought or made - in real stores and with real makers - and makes sure nothing quietly changes what you asked for.
             </p>
             <div className="cta">
               <button className="btn primary lg" onClick={() => create(true, "demo")} disabled={!!creating}>{spin("demo", <PlayCircle size={17} />)} Launch the guided demo</button>
               <button className="btn lg" onClick={() => create(false, "new")} disabled={!!creating}>{spin("new", <Sparkles size={16} />)} Start my own project</button>
               <button className="btn lg ghost" onClick={() => create(false, "glasses", "glasses")} disabled={!!creating}><Glasses size={17} /> Glasses mode</button>
             </div>
-            <div className="tiny muted">No sign-up · demo sellers are fictional · orders are sandbox - nothing is bought</div>
+            <div className="tiny muted">No sign-up · real stores and makers, found live · Tesselle never pays or orders for you</div>
           </div>
 
           <MissionCard onLaunch={() => create(true, "demo")} busy={!!creating} />
@@ -216,10 +215,10 @@ export default function Hub() {
         </div>
       </section>
 
-      <section className="home-section" id="missionlock">
-        <span className="eyebrow-pill glass reveal"><span className="dot" /> 02 · MissionLock</span>
+      <section className="home-section" id="protect">
+        <span className="eyebrow-pill glass reveal"><span className="dot" /> 02 · Your must-haves, kept</span>
         <h2 className="reveal">Tracked, not trusted. <span className="soft-text">Every seller change becomes your decision.</span></h2>
-        <p className="lede reveal">Language models propose; deterministic code decides. Each fit verdict, quote deviation and approval gate is checked against the brief you confirmed - and shown to you like a live shipment.</p>
+        <p className="lede reveal">Language models propose; deterministic code decides. Each fit verdict, seller change and final choice is checked against the brief you confirmed - and shown to you like a live shipment.</p>
         <div className="dash reveal">
           <div className="dash-main glass">
             <div className="row between wrap">
@@ -227,19 +226,19 @@ export default function Hub() {
                 <span className="tiny muted">Project</span>
                 <span style={{ fontFamily: "var(--display)", fontSize: 22, letterSpacing: "-.03em" }}>Bamboo desk organiser</span>
               </div>
-              <div className="row"><span className="chip teal"><ShieldCheck /> Brief v3 · confirmed</span><span className="chip volt"><span className="dot live" /> Tracking</span></div>
+              <div className="row"><span className="chip teal"><ShieldCheck /> Brief v1 · confirmed</span><span className="chip volt"><span className="dot live" /> Tracking</span></div>
             </div>
-            <RouteBar from="Spark" to="Doorstep" value={0.78} note="Kaveri Woodcraft · make route · ETA 9-12 days" />
+            <RouteBar from="Spark" to="Doorstep" value={0.78} note="A Chennai maker · made to order · 10-12 days" />
             <div className="big-stats">
               <BigStat n="12" of="12" label="checks met" icon={<Check size={13} color="var(--volt)" />} />
               <BigStat n="1" label="counteroffer blocked" icon={<Ban size={13} color="var(--red)" />} />
               <BigStat n="0" label="silent changes" icon={<Lock size={13} color="var(--volt)" />} />
-              <BigStat n="3" label="brief versions" icon={<ShieldCheck size={13} color="var(--green)" />} />
+              <BigStat n="11" label="sources checked" icon={<ShieldCheck size={13} color="var(--green)" />} />
             </div>
             <div className="decision" style={{ animation: "none" }}>
               <div className="dhead">
                 <Ban size={20} color="var(--red)" />
-                <div className="grow"><div className="strong">Maker proposes a 20 cm depth</div><div className="tiny muted">Breaks a must-have · MissionLock blocked this quote</div></div>
+                <div className="grow"><div className="strong">Maker proposes a 20 cm depth</div><div className="tiny muted">Breaks a must-have · stopped until you decide</div></div>
                 <span className="chip red">Blocked</span>
               </div>
               <div className="dbody">
@@ -248,19 +247,23 @@ export default function Hub() {
                   <span className="vs">VS</span>
                   <div className="sbs-cell prop"><div className="k">Proposed</div><div className="v">20 cm</div></div>
                 </div>
-                <div className="row small" style={{ gap: 8 }}><Check size={15} color="var(--volt)" /> You kept 18 cm - the maker revised the layout at 16 cm.</div>
+                <div className="row small" style={{ gap: 8 }}><Check size={15} color="var(--volt)" /> You kept 18 cm - the maker came back with a layout that fits.</div>
               </div>
             </div>
           </div>
           <div className="dash-side">
             <div className="glass gauge-card">
-              <h4>Intent integrity</h4>
-              <Gauge value={1}><b>4<small>/4</small></b><span>must-haves locked</span></Gauge>
+              <h4>Your must-haves</h4>
+              <div className="col" style={{ gap: 8, marginTop: 10, width: "100%" }}>
+                {["Max depth 18 cm", "No drilling", "Room for pens", "Room for phone", "Room for A5 notebook"].map((m) => (
+                  <div key={m} className="row between small"><span className="row" style={{ gap: 8 }}><Lock size={13} color="var(--volt)" /> {m}</span><span className="chip volt" style={{ margin: 0 }}><Check /> Kept</span></div>
+                ))}
+              </div>
             </div>
             <div className="photo-card">
-              <img src="/media/studio.jpg" alt="A maker measuring a bamboo panel at 16 cm" style={{ aspectRatio: "auto", height: "100%", minHeight: 260 }} />
+              <img src="/media/studio.jpg" alt="A maker measuring a bamboo panel" style={{ aspectRatio: "auto", height: "100%", minHeight: 260 }} />
               <div className="hud-float glass">
-                <div className="row between"><b className="small">Revised at 16 cm</b><span className="chip volt">Kept</span></div>
+                <div className="row between"><b className="small">Made to fit 18 cm</b><span className="chip volt">Kept</span></div>
                 <div className="tiny muted" style={{ marginTop: 4 }}>Illustration generated with Gemini</div>
               </div>
             </div>
@@ -273,7 +276,7 @@ export default function Hub() {
           <div className="photo-card reveal">
             <img src="/media/glasses-life.jpg" alt="A shopper wearing smart glasses looking at a bamboo desk organiser" />
             <div className="hud-float glass">
-              <div className="mono" style={{ fontSize: 10.5, letterSpacing: ".14em", color: "var(--volt)", marginBottom: 6 }}>MISSIONLOCK · SPOKEN</div>
+              <div className="mono" style={{ fontSize: 10.5, letterSpacing: ".14em", color: "var(--volt)", marginBottom: 6 }}>TESSELLE · SPOKEN</div>
               <div className="small">That one looks about 22 cm deep - over your 18 cm shelf. I can look for a slimmer maker option.</div>
             </div>
             <span className="chip muted media-tag" style={{ top: 12, bottom: "auto" }}>Illustration · Canva AI</span>
@@ -283,7 +286,7 @@ export default function Hub() {
             <h2 style={{ fontSize: "clamp(34px,4.4vw,60px)" }}>Glance. Ask. <span className="soft-text">Hear it back.</span></h2>
             <p className="lede">
               Spot something in a shop? Capture it with your glasses or phone and ask "something like this, but no deeper than 18 cm?". Gemini looks,
-              MissionLock checks it against your brief, and the answer is spoken back - while sizes it can't see stay "Needs checking".
+              Tesselle checks it against your brief, and the answer is spoken back - while sizes it can't see stay "measure to confirm".
             </p>
             <div className="row wrap">
               <button className="btn primary" onClick={() => create(false, "From your glasses", "glasses")} disabled={!!creating}><Glasses size={16} /> Open glasses mode</button>
@@ -309,11 +312,11 @@ export default function Hub() {
               <div style={{ position: "absolute", inset: "54px 12px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div className="glass" style={{ padding: 14, borderRadius: 24 }}>
                   <h4>Where you left off</h4>
-                  <div className="small" style={{ marginTop: 6 }}>Kaveri revised the layout at 16 cm. One change needs you.</div>
+                  <div className="small" style={{ marginTop: 6 }}>The maker kept your 18 cm. One small change needs you.</div>
                 </div>
                 <div className="decision amber" style={{ animation: "none", borderRadius: 24 }}>
                   <div className="dbody" style={{ padding: 14, gap: 10 }}>
-                    <div className="strong small">Budget target ₹6,500 → ₹6,900</div>
+                    <div className="strong small">Price ₹3,000 → ₹3,350</div>
                     <div className="row" style={{ gap: 6 }}><span className="btn sm primary">Keep mine</span><span className="btn sm">Accept</span></div>
                   </div>
                 </div>
@@ -371,7 +374,7 @@ export default function Hub() {
 
       <footer className="home-footer">
         Project Tesselle · Google Cloud AI Builder Cup 2026 · Retail &amp; Commerce<br />
-        Demonstration data is fictional; no real supplier responses, payments, reservations or deliveries. Scenery generated with Gemini; promo media with Canva AI.
+        Listings and makers come from live web search. Tesselle never pays, orders or sends messages for you. Scenery generated with Gemini; promo media with Canva AI.
       </footer>
     </div>
   );

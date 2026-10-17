@@ -1,15 +1,47 @@
-import type { ProjectState, Stage, StreamEvent } from "../types";
+import { useEffect, type ReactNode } from "react";
+import type { Line, ProjectState, Stage, StreamEvent } from "../types";
+
+/** The main action for the current step, shown on the sticky Next bar. */
+export interface Primary {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  icon?: ReactNode;
+  hint?: string;
+}
 
 export interface StageCtx {
   state: ProjectState;
   pid: string;
   busy: string | null;
-  lines: string[];
+  lines: Line[];
   act: (label: string, url: string, body?: unknown, success?: string) => Promise<ProjectState | null>;
   streamAct: (label: string, url: string, body: unknown, success?: string) => Promise<ProjectState | null>;
-  go: (s: Stage) => void;
+  go: (s: Stage, query?: string) => void;
+  setPrimary: (p: Primary | null) => void;
+  params: URLSearchParams;
 }
 
 export type { StreamEvent };
 
 export const brief = (s: ProjectState) => (s.briefs.length ? s.briefs[s.briefs.length - 1] : null);
+
+/** Register this step's main action on the Next bar (re-registered every render so handlers stay fresh). */
+export function usePrimary(ctx: StageCtx, p: Primary | null) {
+  useEffect(() => {
+    ctx.setPrimary(p);
+  });
+  useEffect(() => () => ctx.setPrimary(null), []); // eslint-disable-line
+}
+
+export const STAGE_LABEL: Record<Stage, string> = {
+  inspire: "Start",
+  clarify: "Your brief",
+  visualise: "Visualise",
+  routes: "Options",
+  request: "Reach out",
+  compare: "Replies",
+  approve: "Choose",
+  fulfil: "Track",
+  accept: "Delivery check",
+};

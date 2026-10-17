@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Glasses, Loader2, Plus, Send } from "lucide-react";
 import { get, post, stream } from "../api";
-import { Banner, Logo, ProgressBox, useToast } from "../components/ui";
-import type { NextDecision, Project, ProjectState } from "../types";
+import { Banner, Logo, ProgressStrip, useToast } from "../components/ui";
+import type { Line, NextDecision, Project, ProjectState } from "../types";
 
 interface Shared { blob: Blob; url: string; name: string; video: boolean }
 interface Card { project: Project; next_decision: NextDecision }
@@ -17,7 +17,7 @@ export default function Share() {
   const [note, setNote] = useState("");
   const [projects, setProjects] = useState<Card[]>([]);
   const [busy, setBusy] = useState(false);
-  const [lines, setLines] = useState<string[]>([]);
+  const [lines, setLines] = useState<Line[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -55,7 +55,7 @@ export default function Share() {
     setBusy(true);
     try {
       const s = await post<ProjectState>("/api/projects", { title: "Shared capture" });
-      await stream(`/api/projects/${s.project.id}/inspiration`, form("inspiration"), (e) => e.message && setLines((l) => [...l, e.message!]));
+      await stream(`/api/projects/${s.project.id}/inspiration`, form("inspiration"), (e) => e.message && setLines((l) => [...l, { agent: e.agent, message: e.message! }]));
       nav(`/p/${s.project.id}/clarify`);
     } catch (e) {
       toast((e as Error).message, true);
@@ -68,9 +68,9 @@ export default function Share() {
     try {
       let audio: string | null = null;
       await stream(`/api/projects/${pid}/glance`, form("glance"), (e) => {
-        if (e.message) setLines((l) => [...l, e.message!]);
+        if (e.message) setLines((l) => [...l, { agent: e.agent, message: e.message! }]);
         const ev = e as unknown as { type: string; reply?: string; audio?: string };
-        if (ev.type === "result") { if (ev.reply) setLines((l) => [...l, `MissionLock: ${ev.reply}`]); audio = ev.audio || null; }
+        if (ev.type === "result") { if (ev.reply) setLines((l) => [...l, { agent: "Assistant", message: ev.reply! }]); audio = ev.audio || null; }
       });
       if (audio) new Audio(audio).play().catch(() => {});
       setTimeout(() => nav(`/p/${pid}`), 2500);
@@ -93,7 +93,7 @@ export default function Share() {
             <div className="tiny muted">{items[0].name}{items.length > 1 ? ` (+${items.length - 1} more - the first is used)` : ""}</div>
             <textarea className="textarea" style={{ minHeight: 70 }} placeholder="Optional: what do you want? e.g. 'something like this but no deeper than 18 cm'" value={note} onChange={(e) => setNote(e.target.value)} />
             <Banner>Used for this project only and never shown to sellers unless you choose to share it.</Banner>
-            <ProgressBox lines={lines} busy={busy} />
+            <ProgressStrip lines={lines} busy={busy} />
             <button className="btn primary lg" onClick={newProject} disabled={busy}><Plus size={16} /> Start a new project from this</button>
             {projects.length > 0 && (
               <div className="col">

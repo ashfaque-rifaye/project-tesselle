@@ -1,4 +1,4 @@
-"""Create (or reuse) the Agent Platform runtime that backs MissionLock Sessions and Memory Bank.
+"""Create (or reuse) the Agent Platform runtime that backs the assistant's Sessions and Memory Bank.
 
 The runtime is a lightweight, code-less Agent Runtime: Cloud Run hosts the ADK agents, and this
 instance only provides managed Sessions + Memory Bank. Everything bills to Vertex AI
@@ -14,7 +14,7 @@ import agentplatform
 
 PROJECT = "tesselle-demandfoundry"
 LOCATION = "asia-southeast1"
-DISPLAY_NAME = "tesselle-missionlock"
+DISPLAY_NAME = "tesselle-assistant"
 
 
 def main() -> None:
@@ -33,8 +33,12 @@ def main() -> None:
     for runtime in client.runtimes.list():
         resource = runtime.api_resource
         if resource.display_name == DISPLAY_NAME:
-            # Keep the Memory Bank models in sync (they must be served in the runtime's region).
-            client.runtimes.update(name=resource.name, config={"context_spec": {"memory_bank_config": memory_bank_config}})
+            # Keep the name and the Memory Bank models in sync (models must be served in the runtime's region).
+            client.runtimes.update(name=resource.name, config={
+                "display_name": DISPLAY_NAME,
+                "description": "Sessions + Memory Bank for the Project Tesselle assistant",
+                "context_spec": {"memory_bank_config": memory_bank_config},
+            })
             print(f"updated {resource.name}")
             print(resource.name.split("/")[-1])
             return
@@ -42,7 +46,7 @@ def main() -> None:
     runtime = client.runtimes.create(
         config={
             "display_name": DISPLAY_NAME,
-            "description": "Sessions + Memory Bank for DemandFoundry MissionLock (Project Tesselle)",
+            "description": "Sessions + Memory Bank for the Project Tesselle assistant",
             "labels": {"app": "tesselle"},
             "context_spec": {"memory_bank_config": memory_bank_config},
         }

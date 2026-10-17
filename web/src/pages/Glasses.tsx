@@ -147,7 +147,7 @@ export default function Glasses() {
       </div>
       <div className="hud-bubble glass" aria-live="polite">
         <div className="k">
-          {busy ? <><Loader2 size={11} className="spin" style={{ verticalAlign: -1 }} /> MISSIONLOCK IS LOOKING</> : reply ? "MISSIONLOCK" : "READY"}
+          {busy ? <><Loader2 size={11} className="spin" style={{ verticalAlign: -1 }} /> GEMINI IS LOOKING</> : reply ? "TESSELLE" : "READY"}
         </div>
         <div>{reply || status}</div>
         {reply && <div className="tiny muted" style={{ marginTop: 6 }}>{status}</div>}

@@ -1,4 +1,4 @@
-"""MissionLock guard: deterministic checks that protect the customer's intent.
+"""Brief guard: deterministic checks that protect what the customer asked for.
 
 Language models propose; this module decides. Every fit verdict, every quote deviation and every
 approval gate is computed here in plain code against the confirmed brief, so no agent (and no
@@ -18,22 +18,32 @@ _LABELS = {
     "height_cm": "height",
     "price_inr": "price",
     "delivery_days": "delivery time",
+    "weight_kg": "weight",
 }
 
 
 def _fmt_num(attr: str, v: float) -> str:
     if attr == "price_inr":
-        return f"INR {v:,.0f}"
+        return f"₹{v:,.0f}"
     if attr == "delivery_days":
         return f"{v:g} days"
-    return f"{v:g} cm"
+    if attr.endswith("_cm"):
+        return f"{v:g} cm"
+    if attr.endswith("_kg"):
+        return f"{v:g} kg"
+    return f"{v:g}"
 
 
 def _spec_value(specs: Specs, attr: str) -> Any:
-    return getattr(specs, attr, None)
+    value = getattr(specs, attr, None) if attr in Specs.model_fields and attr != "attributes" else None
+    if value in (None, [], ""):
+        value = (specs.attributes or {}).get(attr)
+    return value
 
 
-def check_requirement(req: Requirement, specs: Specs) -> Check:
+def check_requirement(req: Requirement, specs: Specs, listing: bool = False) -> Check:
+    """listing=True: specs come from a store listing's text, where an unmentioned feature is
+    'not stated' (unknown) rather than proof that it is missing."""
     base = dict(requirement_id=req.id, label=req.label, kind=req.kind)
     if req.status == "needs_checking":
         return Check(
@@ -42,16 +52,19 @@ def check_requirement(req: Requirement, specs: Specs) -> Check:
             explanation=f"'{req.label}' is not confirmed by you yet, so no fit claim is made.",
         )
     if not req.attribute or not req.op or req.op == "text":
-        return Check(**base, result="unknown", explanation="Qualitative requirement - needs seller confirmation.")
+        return Check(**base, result="unknown", explanation="Needs the seller to confirm.")
 
     value = _spec_value(specs, req.attribute)
     if value is None or value == [] or value == "":
         noun = _LABELS.get(req.attribute, req.attribute.replace("_", " "))
-        return Check(**base, result="unknown", explanation=f"The {noun} is not stated by the seller.")
+        return Check(**base, result="unknown", explanation=f"The listing doesn't state the {noun}.")
 
     attr = req.attribute
     if req.op in ("<=", ">=", "==", "!=") and req.value_num is not None:
-        v = float(value)
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return Check(**base, result="unknown", explanation=f"Stated as '{value}' - needs confirming against {req.value_num:g}.")
         target = req.value_num
         ok = {"<=": v <= target, ">=": v >= target, "==": abs(v - target) < 1e-6, "!=": abs(v - target) >= 1e-6}[req.op]
         observed = _fmt_num(attr, v)
@@ -88,19 +101,22 @@ def check_requirement(req: Requirement, specs: Specs) -> Check:
     elif req.op == "has":
         missing = [w for w in wanted if not matches(w)]
         ok = not missing
+        if missing and listing:
+            return Check(**base, result="unknown", observed=observed,
+                         explanation=f"The listing doesn't mention {', '.join(missing)} - check the store page.")
         expl = f"Includes {', '.join(wanted)}." if ok else f"Missing: {', '.join(missing)}."
     else:
         return Check(**base, result="unknown", explanation="Needs seller confirmation.")
     return Check(**base, result="met" if ok else "unmet", observed=observed, explanation=expl)
 
 
-def fit(brief: Brief, specs: Specs) -> FitResult:
+def fit(brief: Brief, specs: Specs, listing: bool = False) -> FitResult:
     """Requirement-by-requirement fit. Verdict rules (blueprint §05):
     - any must-have unmet                    -> not_suitable (never promoted, however cheap)
     - a must unknown or a flexible unmet     -> possible_with_change
     - everything checkable met               -> meets
     """
-    checks = [check_requirement(r, specs) for r in brief.requirements if r.attribute or r.op]
+    checks = [check_requirement(r, specs, listing) for r in brief.requirements if r.attribute or r.op]
     # Budget is evaluated from the brief's budget block, separately from requirements.
     if specs.price_inr is not None:
         if brief.budget.limit_inr:
@@ -108,11 +124,11 @@ def fit(brief: Brief, specs: Specs) -> FitResult:
             checks.append(
                 Check(
                     requirement_id="budget-limit",
-                    label=f"Spending limit INR {brief.budget.limit_inr:,}",
+                    label=f"Spending limit ₹{brief.budget.limit_inr:,}",
                     kind="must",
                     result="met" if ok else "unmet",
-                    observed=f"INR {specs.price_inr:,.0f}",
-                    explanation="Within your spending limit." if ok else f"INR {specs.price_inr:,.0f} is above your absolute limit.",
+                    observed=f"₹{specs.price_inr:,.0f}",
+                    explanation="Within your spending limit." if ok else f"₹{specs.price_inr:,.0f} is above your limit.",
                 )
             )
         if brief.budget.target_inr:
@@ -120,13 +136,13 @@ def fit(brief: Brief, specs: Specs) -> FitResult:
             checks.append(
                 Check(
                     requirement_id="budget-target",
-                    label=f"Target budget INR {brief.budget.target_inr:,}",
+                    label=f"Target budget ₹{brief.budget.target_inr:,}",
                     kind="flexible",
                     result="met" if ok else "unmet",
-                    observed=f"INR {specs.price_inr:,.0f}",
+                    observed=f"₹{specs.price_inr:,.0f}",
                     explanation="Within your target budget."
                     if ok
-                    else f"INR {specs.price_inr - brief.budget.target_inr:,.0f} above your target (flexible).",
+                    else f"₹{specs.price_inr - brief.budget.target_inr:,.0f} above your target (flexible).",
                 )
             )
 
@@ -138,7 +154,7 @@ def fit(brief: Brief, specs: Specs) -> FitResult:
     if unknown_musts:
         return FitResult(
             verdict="possible_with_change",
-            decisive=f"Needs checking: {unknown_musts[0].label.lower()} - {unknown_musts[0].explanation}",
+            decisive=f"Check first: {unknown_musts[0].label.lower()} - {unknown_musts[0].explanation}",
             checks=checks,
         )
     if unmet_flex:
@@ -147,7 +163,7 @@ def fit(brief: Brief, specs: Specs) -> FitResult:
             decisive=f"Changes a flexible preference: {unmet_flex[0].explanation}",
             checks=checks,
         )
-    return FitResult(verdict="meets", decisive="Meets every confirmed must-have.", checks=checks)
+    return FitResult(verdict="meets", decisive="Meets every must-have you set.", checks=checks)
 
 
 def quote_deviations(brief: Brief, quote: Quote) -> list[Deviation]:
@@ -178,10 +194,10 @@ def quote_deviations(brief: Brief, quote: Quote) -> list[Deviation]:
                 Deviation(
                     id="dev-budget-limit",
                     requirement_id="budget-limit",
-                    requirement_label=f"Spending limit INR {brief.budget.limit_inr:,}",
+                    requirement_label=f"Spending limit ₹{brief.budget.limit_inr:,}",
                     kind="must",
-                    original=f"INR {brief.budget.limit_inr:,}",
-                    proposed=f"INR {total:,.0f} known so far",
+                    original=f"₹{brief.budget.limit_inr:,}",
+                    proposed=f"₹{total:,.0f} known so far",
                     reason="The known charges exceed your absolute spending limit.",
                     severity="blocked",
                 )
@@ -194,11 +210,11 @@ def quote_deviations(brief: Brief, quote: Quote) -> list[Deviation]:
                 Deviation(
                     id="dev-budget-target",
                     requirement_id="budget-target",
-                    requirement_label=f"Target budget INR {brief.budget.target_inr:,}",
+                    requirement_label=f"Target budget ₹{brief.budget.target_inr:,}",
                     kind="flexible",
-                    original=f"INR {brief.budget.target_inr:,}",
-                    proposed=f"INR {total:,.0f} known so far",
-                    reason=f"INR {total - brief.budget.target_inr:,.0f} above your target budget (flexible).",
+                    original=f"₹{brief.budget.target_inr:,}",
+                    proposed=f"₹{total:,.0f} known so far",
+                    reason=f"₹{total - brief.budget.target_inr:,.0f} above your target budget (flexible).",
                     severity="needs_decision",
                 )
             )
@@ -223,11 +239,19 @@ def readiness(brief: Brief, quote: Quote) -> str:
         return "not_suitable"
     if any(d.severity == "needs_decision" and d.decision == "pending" for d in quote.deviations):
         return "needs_clarification"
-    for req in brief.musts():
-        if req.attribute and req.op:
-            if check_requirement(req, quote.offered_specs).result == "unknown":
-                return "needs_clarification"
     return "ready"
+
+
+def unconfirmed_musts(brief: Brief, quote: Quote) -> list[str]:
+    """Must-haves the reply neither confirms nor contradicts - the customer confirms them with the seller."""
+    confirmed = {r.requirement_id for r in quote.responses if r.response == "achievable"}
+    out = []
+    for req in brief.musts():
+        if req.id in confirmed or any(d.requirement_id == req.id for d in quote.deviations):
+            continue
+        if not (req.attribute and req.op) or check_requirement(req, quote.offered_specs).result == "unknown":
+            out.append(req.label)
+    return out
 
 
 def approval_blockers(brief: Brief, quote: Quote, existing_order: bool) -> list[str]:

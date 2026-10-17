@@ -26,11 +26,11 @@ if (pid) {
   await shot("/", "home.png", async () => { await page.mouse.move(820, 520, { steps: 20 }); await page.waitForTimeout(1200); }, 6000);
   await shot(`/p/${pid}/clarify`, "clarify.png");
   await shot(`/p/${pid}/routes`, "routes.png", async () => {
-    await page.evaluate(() => { const c = document.querySelector(".ws-center"); const g = document.querySelectorAll(".group-head")[1]; if (c && g) c.scrollTop = g.offsetTop - 40; });
+    await page.evaluate(() => { const c = document.querySelector(".ws-center"); const g = document.querySelector(".offer-grid"); if (c && g) c.scrollTop = Math.max(0, g.getBoundingClientRect().top + c.scrollTop - c.getBoundingClientRect().top - 150); });
     await page.waitForTimeout(1500);
   });
   await shot(`/p/${pid}/compare`, "compare.png", async () => {
-    await page.evaluate(() => { const c = document.querySelector(".ws-center"); const d = [...document.querySelectorAll(".card.raised")].pop(); if (c && d) c.scrollTop = d.offsetTop - 20; });
+    await page.evaluate(() => { const c = document.querySelector(".ws-center"); const d = document.querySelector(".side-by-side")?.closest(".card, .glass, section") || document.querySelector(".side-by-side"); if (c && d) c.scrollTop = Math.max(0, d.getBoundingClientRect().top + c.scrollTop - c.getBoundingClientRect().top - 30); });
     await page.waitForTimeout(1200);
   });
   await shot(`/g/${pid}`, "glasses.png", async () => { await page.waitForTimeout(2500); });

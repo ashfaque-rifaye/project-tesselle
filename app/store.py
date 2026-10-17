@@ -3,14 +3,14 @@ orders and the activity/evidence log. Plus Cloud Storage for media.
 
 Layout (Native mode, asia-southeast1):
   projects/{pid}                      project header (stage, current brief version, rev ...)
-  projects/{pid}/briefs/{v}           immutable brief versions (MissionLock history)
+  projects/{pid}/briefs/{v}           immutable brief versions (change history)
   projects/{pid}/concepts/{cid}       labelled concept visualisations
   projects/{pid}/routes/latest        last route exploration (buy / source / customise / make)
   projects/{pid}/requests/{rid}       customer-approved seller requests
   projects/{pid}/quotes/{qid}         seller quotes, each tied to one brief version
   projects/{pid}/orders/{oid}         sandbox orders (no money moves)
   projects/{pid}/events/{eid}         activity + agent evidence trace
-  catalog/{item_id}                   labelled fictional sample catalogue (with embeddings)
+
 """
 
 from __future__ import annotations
@@ -243,6 +243,20 @@ async def events(pid: str, limit: int = 80) -> list[dict[str, Any]]:
 # ---- Full state for the UI ---------------------------------------------------------------------
 
 
+def _annotate_quotes(quotes: list[dict[str, Any]], briefs: list[Any]) -> None:
+    """Add the must-haves each quote leaves unconfirmed (computed, never stored)."""
+    from . import guard
+    from .models import Quote as Q
+    by_v = {b.version: b for b in briefs}
+    for q in quotes:
+        b = by_v.get(q.get("brief_version"))
+        if b is not None:
+            try:
+                q["to_confirm"] = guard.unconfirmed_musts(b, Q.model_validate(q))
+            except Exception:
+                q["to_confirm"] = []
+
+
 async def full_state(pid: str) -> Optional[dict[str, Any]]:
     project = await get_project(pid)
     if not project:
@@ -256,6 +270,7 @@ async def full_state(pid: str) -> Optional[dict[str, Any]]:
         events(pid),
         get(pid, "routes", "latest"),
     )
+    _annotate_quotes(quotes, briefs)
     return {
         "project": project,
         "briefs": [b.model_dump() for b in briefs],

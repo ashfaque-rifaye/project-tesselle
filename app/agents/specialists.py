@@ -1,7 +1,7 @@
 """Project Tesselle specialist agents (Google ADK LlmAgents on Gemini via Vertex AI).
 
-Each specialist has one job and a typed output schema. None of them may decide whether an offer
-meets the brief: that verdict is computed deterministically by app.missionlock and handed to them.
+Each specialist has one job and a typed output schema. None of them decides whether an offer meets
+the brief: that verdict is computed deterministically by app.guard and handed to them.
 """
 
 from __future__ import annotations
@@ -11,68 +11,70 @@ from typing import Literal, Optional
 from google.adk.agents import LlmAgent
 from pydantic import BaseModel, Field
 
-from ..models import PriceLine, Requirement, RequirementResponse, Specs, Unknown
+from ..models import PriceLine, Requirement, RequirementResponse, Unknown
 from .runtime import gen_config, model
 
 # ---------------------------------------------------------------------------------------------
-# 1. Intake: multimodal inspiration (words, voice, photo) -> draft MissionLock brief
+# 1. Brief agent: multimodal inspiration (words, voice, photo, video) -> draft brief
 # ---------------------------------------------------------------------------------------------
 
 
 class BriefDraft(BaseModel):
     title: str = Field(description="Short project name, e.g. 'Compact bamboo desk organiser'.")
-    purpose: str = Field(description="The job the product should do, in the customer's ordinary language.")
+    category: str = Field(description="One or two words, e.g. 'home office', 'phone accessory', 'gift', 'apparel'.")
+    purpose: str = Field(description="The job it should do, in the customer's ordinary language.")
     requirements: list[Requirement]
     budget_target_inr: Optional[int] = Field(default=None, description="What they would like to spend.")
     budget_limit_inr: Optional[int] = Field(default=None, description="Only if they stated an absolute maximum.")
     delivery_region: Optional[str] = None
-    delivery_desired_by: Optional[str] = None
+    delivery_desired_by: Optional[str] = Field(default=None, description="ISO date if they gave a deadline.")
     delivery_essential: bool = False
     unknowns: list[Unknown] = Field(description="At most 3 smallest-useful next questions.")
-    acceptance_checks: list[str] = Field(description="3-5 checks the customer can make on delivery.")
-    photo_observations: list[str] = Field(
-        description="What the photo shows that matters (estimates are labelled as unconfirmed)."
-    )
+    acceptance_checks: list[str] = Field(description="3-5 checks the customer can make when it arrives.")
+    photo_observations: list[str] = Field(description="What the photo or video shows that matters (estimates are unconfirmed).")
     transcript: Optional[str] = Field(default=None, description="Verbatim transcript if a voice note was given.")
     out_of_scope: bool = False
     out_of_scope_reason: Optional[str] = None
 
 
 INTAKE_INSTRUCTION = """
-You are MissionLock's intake specialist inside Project Tesselle, a personal commerce agent that
-preserves what a customer actually needs on the way from inspiration to a real offer.
+You are the brief agent in Project Tesselle, a personal shopping agent for purchases that have to fit:
+a space, a device, a person, an occasion or a deadline. It helps people find, source or get made
+almost anything - home and office items, tech accessories, clothing, gifts, spare parts, crafts.
 
-Turn the customer's inspiration (typed words, a voice note, photos of their space or of an
-inspiring item) into a draft product brief.
+Turn the customer's inspiration (typed words, a voice note, photos of their space or of an inspiring
+item, a short video) into a draft brief.
 
 Rules:
-- Record only what the customer said or clearly showed. NEVER invent measurements.
-- A photo can suggest a dimension but cannot prove it: add such values with source
-  "photo_estimate" and status "needs_checking", and add an unknown asking for a measurement.
-  Values the customer typed or spoke are source "customer", status "confirmed".
-- kind "must" = essential or a hard limit ("must", "only", "no drilling", "can't go above",
-  "maximum", "has to"). kind "flexible" = wishes ("would be lovely", "something like", "ideally").
-- Prefer checkable structure: depth_cm / width_cm / height_cm with op "<=" or ">=" and value_num;
+- Record only what the customer said or clearly showed. NEVER invent measurements or specs.
+- A photo can suggest a dimension but cannot prove it: add such values with source "photo_estimate"
+  and status "needs_checking", and add an unknown asking for a measurement. Values the customer typed
+  or spoke are source "customer", status "confirmed".
+- kind "must" = essential or a hard limit ("must", "only", "no drilling", "can't go above", "maximum",
+  "has to", "needs to fit"). kind "flexible" = wishes ("would be lovely", "something like", "ideally").
+- Prefer checkable structure:
+  sizes -> depth_cm / width_cm / height_cm / weight_kg with op "<=" or ">=" and value_num;
   "no drilling" -> attribute "mounting", op "not_in", value_list ["drill", "wall-screw"];
-  materials -> attribute "material", op "in", value_list of lowercase options;
-  things it must hold -> attribute "features", op "has", value_list using short lowercase nouns
-  such as "pen cup", "phone slot", "notebook tray", "drawer".
-  Use one requirement per feature so each can be traded off separately.
-- Budget: budget_target_inr = what they would like to spend; budget_limit_inr only when they gave
-  an absolute ceiling. Do not add budget as a requirement.
-- Unknowns: at most 3, each the smallest useful next question with why it matters. Do not ask
-  about anything already stated.
+  materials / colours / sizes -> attribute "material" / "color" / "size", op "in", lowercase options;
+  device fit -> attribute "compatible_with", op "has", value_list e.g. ["pixel 9"];
+  things it must include -> attribute "features", op "has", short lowercase nouns ("pen cup",
+  "phone slot", "card slot", "usb-c"). One requirement per feature so each can be traded off.
+- Budget: budget_target_inr = what they would like to spend; budget_limit_inr only for an absolute
+  ceiling. Do not add budget as a requirement.
+- Unknowns: at most 3, each the smallest useful next question with why it matters. Never ask about
+  something already stated.
 - Acceptance checks: 3-5 concrete checks for delivery day, drawn from the must-haves.
 - Ids are short kebab-case slugs (max-depth, no-drilling, phone-slot, material).
-- Scope: non-electrical desk organisers and accessory holders. Electrical, load-bearing,
-  hazardous or safety-critical items -> out_of_scope true with a kind reason.
+- Out of scope (out_of_scope true, with a kind reason): weapons, medicines, hazardous or regulated
+  goods, anything illegal, and safety-critical items such as load-bearing structures or car parts
+  that need certified fitting.
 - If a voice note is attached, put its verbatim transcript in `transcript`.
 - Do not copy protected brand designs; describe functional goals instead.
 """
 
 intake_agent = LlmAgent(
-    name="missionlock_intake",
-    description="Turns multimodal inspiration into a draft MissionLock brief.",
+    name="brief_agent",
+    description="Turns multimodal inspiration into a draft brief.",
     model=model(),
     instruction=INTAKE_INSTRUCTION,
     output_schema=BriefDraft,
@@ -81,7 +83,7 @@ intake_agent = LlmAgent(
 )
 
 # ---------------------------------------------------------------------------------------------
-# 2. Studio director: brief + visual edit -> image prompt, and flags edits that touch the brief
+# 2. Design agent: brief + visual edit -> image prompt, and flags edits that touch the brief
 # ---------------------------------------------------------------------------------------------
 
 
@@ -93,30 +95,26 @@ class BriefEffect(BaseModel):
 class ConceptDirection(BaseModel):
     image_prompt: str = Field(description="A complete prompt for the image model.")
     caption: str = Field(description="2-5 word name for this variation.")
-    brief_effects: list[BriefEffect] = Field(
-        description="Brief requirements this visual edit might change. Empty if none."
-    )
+    brief_effects: list[BriefEffect] = Field(description="Brief requirements this visual edit might change. Empty if none.")
 
 
 STUDIO_INSTRUCTION = """
-You are the art director of Project Tesselle's creative studio. You write prompts for an image model
-that renders CONCEPT visualisations of a customer's product idea. Concepts are illustrative only.
+You are the design agent of Project Tesselle. You write prompts for an image model that renders
+CONCEPT images of a customer's idea. Concepts are illustrations only, never offers.
 
-Given the confirmed brief and (optionally) the customer's refinement instruction:
+Given the brief and (optionally) the customer's refinement instruction:
 - Write one rich image prompt: clean product concept render, three-quarter view, warm off-white
   seamless background, soft natural light, realistic materials, no text, no logos, no brand marks,
-  no people. Respect every must-have visually (e.g. a shallow footprint for a small maximum depth,
-  freestanding when drilling is ruled out, every required compartment visible).
-- If the instruction refers to a marked area, say "apply the change only to the area marked by
-  the teal ring in the reference image, and remove the ring".
-- If the instruction implies a change to the brief (e.g. "make it narrower" changes width,
-  "remove the phone slot" removes a requirement), list it in brief_effects. A visual edit never
-  silently changes the brief - the customer decides.
+  no people. Respect every must-have visually.
+- If the instruction refers to a marked area, say "apply the change only to the area marked by the
+  ring in the reference image, and remove the ring".
+- If the instruction implies a change to the brief (e.g. "make it narrower"), list it in
+  brief_effects. A visual edit never silently changes the brief - the customer decides.
 - Never imitate a protected branded design; offer an original design with the same function.
 """
 
 studio_director = LlmAgent(
-    name="studio_director",
+    name="design_agent",
     description="Writes concept image prompts and flags visual edits that would change the brief.",
     model=model(),
     instruction=STUDIO_INSTRUCTION,
@@ -126,42 +124,39 @@ studio_director = LlmAgent(
 )
 
 # ---------------------------------------------------------------------------------------------
-# 3. Route analyst: explains (never decides) the deterministic fit results
+# 3. Advisor: explains (never decides) the deterministic fit results, briefly
 # ---------------------------------------------------------------------------------------------
 
 
 class ItemNote(BaseModel):
     item_id: str
-    note: str = Field(description="One sentence: the decisive difference for this customer.")
+    note: str = Field(description="At most 14 words: the decisive difference for this customer.")
 
 
 class RouteNarrative(BaseModel):
-    headline: str = Field(description="One honest sentence summarising what was found.")
-    explanation: str = Field(description="2-3 sentences: why, and the trade-offs between routes.")
-    item_notes: list[ItemNote]
-    next_steps: list[str] = Field(description="2-4 neutral options the customer can take next.")
+    headline: str = Field(description="At most 12 words, plain and honest.")
+    points: list[str] = Field(description="2-4 bullet points, each at most 16 words, plain language.")
+    best_next: str = Field(description="At most 14 words: the most useful next step for the customer.")
+    item_notes: list[ItemNote] = Field(default_factory=list)
 
 
 ROUTE_INSTRUCTION = """
-You explain fulfilment options to a customer. You receive the confirmed brief and, for every
-option checked, a verdict computed by the MissionLock guard: meets / possible_with_change /
-not_suitable, plus requirement-by-requirement checks, stock status and unresolved charges.
+You are the advisor. You explain shopping options to a customer in plain, friendly language. You
+receive the brief and every option checked: real store listings (route "buy") with a verdict from
+the fit checker (meets / possible_with_change / not_suitable) and real makers who could quote
+(route "make").
 
 Rules:
-- NEVER change or contradict a verdict. A cheaper or prettier item that breaks a must-have is
-  never recommended.
-- If nothing meets every must-have say exactly: "No suitable match found in the sources checked."
-  then explain what each route could offer.
-- Be precise about uncertainty: "Delivery not yet confirmed", "Material needs seller confirmation",
-  "Import duty not yet known". A stock observation is not a reservation.
-- All sellers and items are fictional demonstration data - do not call them real.
-- Next steps are neutral options (change a flexible preference, request sourcing, ask a maker,
-  save and pause), not pressure. Keep notes to one sentence each.
+- NEVER change or contradict a verdict. Something that breaks a must-have is never recommended.
+- If nothing meets every must-have, the headline says so honestly.
+- Short and scannable: headline <= 12 words, 2-4 points <= 16 words each, best_next <= 14 words.
+  No jargon (no "routes", "verdicts", "vector search"). Speak like a helpful friend.
+- Prices and stock come from store pages and can change; say "check on the store page" when it matters.
 """
 
 route_analyst = LlmAgent(
-    name="route_analyst",
-    description="Explains fit verdicts across buy, source, customise and make routes.",
+    name="advisor",
+    description="Summarises the options found, in short plain-language bullets.",
     model=model(),
     instruction=ROUTE_INSTRUCTION,
     output_schema=RouteNarrative,
@@ -170,94 +165,128 @@ route_analyst = LlmAgent(
 )
 
 # ---------------------------------------------------------------------------------------------
-# 4. Seller brief writer: privacy-filtered summary of what sellers receive
+# 4. Outreach agent: messages the customer sends to real makers / sellers
 # ---------------------------------------------------------------------------------------------
 
 
-class SellerBrief(BaseModel):
-    summary: str = Field(description="3-4 sentence brief a maker can act on. No personal details.")
-    questions_for_maker: list[str] = Field(description="1-3 questions the maker should answer in a quote.")
+class OutreachMessage(BaseModel):
+    recipient: str = Field(description="Business name exactly as given.")
+    subject: str = Field(description="Short email subject.")
+    body: str = Field(description="Under 170 words. Friendly, specific, signed 'Thanks' without a name.")
 
 
-SELLER_BRIEF_INSTRUCTION = """
-Write the brief a maker will receive. Include only: the product purpose, confirmed dimensions and
-constraints, must-haves vs flexible preferences, budget only if sharing is allowed, delivery
-region (city level). Never include names, addresses, contact details or descriptions of the
-customer's home beyond what the product must fit. Ask the maker to mark each requirement as
-achievable, needs clarification, proposed change or not achievable.
+class OutreachDrafts(BaseModel):
+    messages: list[OutreachMessage]
+
+
+OUTREACH_INSTRUCTION = """
+You are the outreach agent. You write short messages the customer will send THEMSELVES to real
+businesses (makers, workshops, sellers) to ask for a quote or a change. You never send anything.
+
+Each message: one line on what they want, then the must-haves as a short list ("must stay the same")
+and the nice-to-haves, the budget only if the brief says it may be shared, the delivery city, and a
+clear ask: "Could you confirm which of these you can meet, a price with any delivery or extra
+charges, and how long it would take?". Never include the customer's name, phone, email or address.
+Write in plain, polite English. For a follow-up after a counteroffer, politely restate the
+requirement the customer kept and ask whether they can meet it, e.g. with a different layout.
 """
 
-seller_brief_writer = LlmAgent(
-    name="seller_brief_writer",
-    description="Drafts the privacy-filtered request that sellers receive.",
+outreach_writer = LlmAgent(
+    name="outreach_agent",
+    description="Drafts quote requests and follow-ups the customer sends to real businesses.",
     model=model(),
-    instruction=SELLER_BRIEF_INSTRUCTION,
-    output_schema=SellerBrief,
-    output_key="seller_brief",
-    generate_content_config=gen_config("seller-brief"),
+    instruction=OUTREACH_INSTRUCTION,
+    output_schema=OutreachDrafts,
+    output_key="drafts",
+    generate_content_config=gen_config("outreach"),
 )
 
 # ---------------------------------------------------------------------------------------------
-# 5. Demo maker: an AI-simulated fictional seller that quotes against the brief
+# 5. Reply reader: a seller's reply (pasted email, screenshot, PDF) -> structured quote
 # ---------------------------------------------------------------------------------------------
 
 
-class MakerResponse(BaseModel):
-    decision: Literal["quote", "decline"]
-    title: str = Field(description="Name of what is offered, e.g. 'Bamboo organiser - standard 20 cm jig'.")
-    message: str = Field(description="Under 80 words, in the maker's voice.")
-    offered_specs: Specs
-    responses: list[RequirementResponse]
-    price_lines: list[PriceLine]
-    lead_time_days_min: int
-    lead_time_days_max: int
-    validity_days: int
-    sample_plan: str
-    terms: list[str]
-    layout_description: str = Field(description="Visual description of the offered design for a proposal render.")
+class AttrValue(BaseModel):
+    key: str = Field(description="Requirement attribute key, e.g. depth_cm, material, compatible_with.")
+    value: str
 
 
-MAKER_INSTRUCTION = """
-You are role-playing a FICTIONAL small seller in a Project Tesselle demonstration. Your responses are
-AI-simulated and clearly labelled as such in the product. Never claim to be a real business.
+class OfferedSpecs(BaseModel):
+    width_cm: Optional[float] = None
+    depth_cm: Optional[float] = None
+    height_cm: Optional[float] = None
+    material: Optional[str] = None
+    finish: Optional[str] = None
+    mounting: Optional[str] = None
+    features: list[str] = Field(default_factory=list, description="Reuse the exact feature words from the brief.")
+    attributes: list[AttrValue] = Field(default_factory=list, description="Any other stated property, keyed like the brief.")
 
-Seller profile: {seller_name}. {capabilities}
 
-You receive a customer-approved brief (with its version number) and, in later rounds, the
-customer's decision on your previous proposal. Respond as a careful workshop owner would:
-- Mark EVERY requirement id in `responses`: achievable / needs_clarification / proposed_change /
-  not_achievable, with what you actually offer in `offered`.
-- `offered_specs` describes exactly what you would make. For features you include, reuse the exact
-  feature words from the brief (e.g. "pen cup", "phone slot", "notebook tray").
-- Price lines: the item, any design/customisation charge, the sample photo step, shipping (mark
-  estimate=true) and an `unresolved` line with amount_inr null for anything you cannot price yet.
-- If the brief does not fit your craft at all, decide "decline" with a polite reason.
+class ReadQuote(BaseModel):
+    seller_name: str
+    title: str = Field(description="What is offered, e.g. 'Bamboo organiser - standard 20 cm jig'.")
+    summary: str = Field(description="One or two sentences summarising the reply.")
+    offered_specs: OfferedSpecs
+    responses: list[RequirementResponse] = Field(description="One per brief requirement id the reply addresses.")
+    price_lines: list[PriceLine] = Field(description="Every charge mentioned; amount_inr null when not given.")
+    lead_time_days_min: Optional[int] = None
+    lead_time_days_max: Optional[int] = None
+    validity_days: Optional[int] = None
+    terms: list[str] = Field(default_factory=list)
 
-Commercial behaviour for this demonstration (stay realistic):
-- ROUND 1: your cheapest, fastest route is your standard tray jig. If the brief's maximum depth is
-  below your nearest standard jig depth, quote the standard jig depth as a `proposed_change` on the
-  depth requirement, explaining the cost and lead-time advantage honestly.
-- LATER ROUNDS where the customer KEPT their original requirement: design a revised compartment
-  layout that fits within their maximum depth (for example: phone slot moved to the side, notebook
-  stored upright). Mark depth achievable. Re-cutting the jig costs a little more, so the price may
-  rise slightly; be explicit about it.
+
+REPLY_INSTRUCTION = """
+You are the reply reader. A seller or maker replied to the customer's request (pasted email text,
+a screenshot or a PDF). Extract exactly what they OFFER - never what the customer wanted.
+- For every brief requirement the reply addresses, add a response: achievable / needs_clarification /
+  proposed_change / not_achievable, with what they actually offer in `offered`.
+- offered_specs: only values stated in the reply. Unknown -> null. Reuse the brief's attribute keys.
+- price_lines: each charge mentioned; anything mentioned but unpriced gets amount_inr null and kind
+  "unresolved". Never add up prices yourself.
 """
 
-
-def maker_agent(seller_name: str, capabilities: str) -> LlmAgent:
-    return LlmAgent(
-        name="demo_maker",
-        description="AI-simulated fictional maker that answers seller requests.",
-        model=model(),
-        instruction=MAKER_INSTRUCTION.replace("{seller_name}", seller_name).replace("{capabilities}", capabilities),
-        output_schema=MakerResponse,
-        output_key="maker_response",
-        generate_content_config=gen_config("demo-maker", thinking="medium", temperature=0.4),
-    )
-
+reply_reader = LlmAgent(
+    name="reply_reader",
+    description="Turns a seller's reply into a structured quote the fit checker can verify.",
+    model=model(),
+    instruction=REPLY_INSTRUCTION,
+    output_schema=ReadQuote,
+    output_key="quote",
+    generate_content_config=gen_config("reply-reader", thinking="low"),
+)
 
 # ---------------------------------------------------------------------------------------------
-# 6. Deviation explainer: decision cards for seller-proposed changes
+# 6. Practice reply: a clearly labelled simulated reply so anyone can try the flow end to end
+# ---------------------------------------------------------------------------------------------
+
+
+class SimulatedReply(BaseModel):
+    text: str = Field(description="The reply email body, 80-150 words.")
+
+
+SIMULATE_INSTRUCTION = """
+Write a realistic reply email from a small maker answering the customer's request, for a clearly
+labelled PRACTICE run of the app (it is never shown as a real business). Sign it "- The workshop".
+ROUND 1: accept most requirements, but propose ONE change to the tightest numeric must-have because
+it suits your standard tooling (e.g. a standard 20 cm jig when the customer's maximum depth is 18 cm),
+explain the saving honestly, and give prices: the item, a small customisation fee, delivery as an
+estimate, and lead time.
+ROUND 2 (the customer kept their requirement): agree to meet it with a revised layout, mention any
+small price rise, and restate prices and lead time.
+"""
+
+reply_simulator = LlmAgent(
+    name="practice_reply",
+    description="Writes a labelled practice reply so the reply flow can be tried without a real seller.",
+    model=model(),
+    instruction=SIMULATE_INSTRUCTION,
+    output_schema=SimulatedReply,
+    output_key="reply",
+    generate_content_config=gen_config("practice-reply", temperature=0.5),
+)
+
+# ---------------------------------------------------------------------------------------------
+# 7. Decision cards for seller-proposed changes
 # ---------------------------------------------------------------------------------------------
 
 
@@ -265,22 +294,21 @@ class DecisionCard(BaseModel):
     title: str = Field(description="e.g. 'The maker proposes 20 cm depth'.")
     what_changes: str = Field(description="Original vs proposed, in one sentence.")
     consequence: str = Field(description="What accepting would mean for the customer, concretely.")
-    keep_label: str = Field(description="Button text to keep the original, e.g. 'Keep 18 cm - ask for another layout'.")
-    accept_label: str = Field(description="Button text to accept, e.g. 'Accept 20 cm (creates brief v3)'.")
-    question_for_seller: str = Field(description="What we will ask the seller if the customer keeps the original.")
+    keep_label: str = Field(description="Button text to keep the original, e.g. 'Keep 18 cm'.")
+    accept_label: str = Field(description="Button text to accept, e.g. 'Accept 20 cm'.")
+    question_for_seller: str = Field(description="What we ask the seller if the customer keeps the original.")
 
 
 DEVIATION_INSTRUCTION = """
-You write decision cards for MissionLock. A seller proposed a change to the customer's brief; the
-guard has already classified it (blocked = it breaks a must-have; needs_decision = it changes a
-flexible preference). Explain the compromise and its real consequence BEFORE the customer
-chooses. Neutral, calm, specific - no pressure, no recommendation to accept. For a must-have, say
-plainly that accepting changes something the customer said must stay the same and creates a new
-brief version. Keep each field to one sentence.
+You write decision cards. A seller proposed a change to the customer's brief; the fit checker has
+already classified it (blocked = it breaks a must-have; needs_decision = it changes a flexible
+preference). Explain the trade-off and its real consequence BEFORE the customer chooses. Neutral,
+calm, specific, plain language - no pressure. For a must-have, say plainly that accepting changes
+something the customer said must stay the same. One sentence per field; button labels <= 4 words.
 """
 
 deviation_explainer = LlmAgent(
-    name="deviation_explainer",
+    name="decision_writer",
     description="Explains seller-proposed changes as decision cards.",
     model=model(),
     instruction=DEVIATION_INSTRUCTION,
@@ -290,26 +318,25 @@ deviation_explainer = LlmAgent(
 )
 
 # ---------------------------------------------------------------------------------------------
-# 7. Recap: "Your dimensions are confirmed. Two quotes need review."
+# 8. Recap: "Your sizes are confirmed. One reply needs your decision."
 # ---------------------------------------------------------------------------------------------
 
 
 class Recap(BaseModel):
-    headline: str = Field(description="At most two short sentences: what is confirmed and what changed.")
-    next_action: str = Field(description="The single next decision, as a short imperative.")
+    headline: str = Field(description="At most two short sentences: what is settled and what changed.")
+    next_action: str = Field(description="The single next step, as a short imperative.")
     spoken: str = Field(description="The recap as one or two natural spoken sentences.")
 
 
 RECAP_INSTRUCTION = """
-Write a resume-where-you-left-off recap for a customer returning to a project, possibly on a
-different device. The customer must not need to reread anything. State what is confirmed, what
-changed, and the one decision waiting. Never claim real-world events (payments, deliveries,
-seller agreement) that the state does not show; sandbox orders are sandbox orders.
+Write a resume-where-you-left-off recap for a customer returning to a project, possibly on another
+device. State what is settled, what changed, and the one next step. Never claim real-world events
+(payments, deliveries, seller agreement) that the state does not show. Plain, friendly language.
 """
 
 recap_agent = LlmAgent(
     name="recap",
-    description="Short cross-device recap of a project's state and the pending decision.",
+    description="Short cross-device recap of a project's state and the next step.",
     model=model(),
     instruction=RECAP_INSTRUCTION,
     output_schema=Recap,
@@ -318,7 +345,7 @@ recap_agent = LlmAgent(
 )
 
 # ---------------------------------------------------------------------------------------------
-# 8. Delivery inspector: photo vs the approved acceptance checklist
+# 9. Delivery inspector: photo vs the acceptance checklist
 # ---------------------------------------------------------------------------------------------
 
 
@@ -326,7 +353,7 @@ class InspectionItem(BaseModel):
     check: str
     result: Literal["looks_consistent", "possible_issue", "cannot_tell_from_photo"]
     evidence: str = Field(description="What in the photo supports this, or why it cannot be judged.")
-    how_to_verify: str = Field(description="A simple way for the customer to verify, e.g. 'Measure the depth with a ruler'.")
+    how_to_verify: str = Field(description="A simple way to verify, e.g. 'Measure the depth with a ruler'.")
 
 
 class InspectionReport(BaseModel):
@@ -335,16 +362,15 @@ class InspectionReport(BaseModel):
 
 
 INSPECTOR_INSTRUCTION = """
-You help a customer check a delivered item against the acceptance checks they approved before
-ordering. Look at the photo(s) carefully. A photo cannot prove exact dimensions or hidden quality:
-mark those "cannot_tell_from_photo" and give a simple way to verify. Flag visible damage, missing
-parts or a clearly different design as "possible_issue". Never declare the item accepted - the
-customer decides. Delivery confirmation is not acceptance of conformity.
+You help a customer check a delivered item against the checks they agreed before buying. Look at the
+photo(s) carefully. A photo cannot prove exact dimensions or hidden quality: mark those
+"cannot_tell_from_photo" and give a simple way to verify. Flag visible damage, missing parts or a
+clearly different design as "possible_issue". Never declare the item accepted - the customer decides.
 """
 
 delivery_inspector = LlmAgent(
     name="delivery_inspector",
-    description="Compares delivery photos with the approved acceptance checklist.",
+    description="Compares delivery photos with the agreed acceptance checks.",
     model=model(),
     instruction=INSPECTOR_INSTRUCTION,
     output_schema=InspectionReport,

@@ -13,9 +13,13 @@ MODEL_REASONING = os.environ.get("TESSELLE_MODEL", "gemini-3.8-flash")
 MODEL_IMAGE = os.environ.get("TESSELLE_IMAGE_MODEL", "gemini-3.1-flash-image")
 MODEL_EMBED = os.environ.get("TESSELLE_EMBED_MODEL", "gemini-embedding-2")
 MODEL_TTS = os.environ.get("TESSELLE_TTS_MODEL", "gemini-2.5-flash-tts")
+# Fast regional model: grounded web search, structuring, and automatic fallback when the primary
+# model is slow or rate-limited. Served from the same region as Cloud Run.
+MODEL_FAST = os.environ.get("TESSELLE_FAST_MODEL", "gemini-2.5-flash")
+FAST_LOCATION = os.environ.get("TESSELLE_FAST_LOCATION", "asia-southeast1")
 EMBED_DIM = 768
 
-# Agent Platform runtime that hosts MissionLock Sessions + Memory Bank
+# Agent Platform runtime that hosts the assistant's Sessions + Memory Bank
 # (created by tools/provision_agent_platform.py).
 AGENT_ENGINE_ID = os.environ.get("TESSELLE_AGENT_ENGINE_ID", "2548870263324278784")
 AGENT_ENGINE_LOCATION = os.environ.get("TESSELLE_AGENT_ENGINE_LOCATION", REGION)
