@@ -1,64 +1,76 @@
 1
-00:00:00,300 --> 00:00:07,511
-Most shopping helps you buy what exists. Project Tesselle helps you get what you actually need.
+00:00:00,300 --> 00:00:07,271
+Shopping for something that has to fit? Meet Tesselle - a personal shopping agent built with Gemini and Google Cloud.
 
 2
-00:00:08,250 --> 00:00:15,381
-It's a personal commerce agent built on Gemini, Google's Agent Development Kit, and Google Cloud.
+00:00:08,067 --> 00:00:15,638
+This is the live app. The guided demo runs itself - real agents, real web search, nothing pre-recorded.
 
 3
-00:00:16,150 --> 00:00:25,561
-1 · Inspiration - I start with a photo of my desk and a few words: the shelf leaves eighteen centimetres, I rent, so no drilling, about three thousand rupees.
+00:00:16,300 --> 00:00:24,471
+This demo runs itself on the live app. Gemini agents do every step; real stores and real makers are searched as it happens.
 
 4
-00:00:27,050 --> 00:00:35,501
-2 · Intent - Gemini drafts a brief. MissionLock separates what must stay the same from what is flexible, and I confirm it.
+00:00:25,367 --> 00:00:31,898
+Start the way you like - words, voice, a photo or a video. Here: a sentence and a photo of the desk.
 
 5
-00:00:38,783 --> 00:00:48,954
-3 · Concept - The studio renders a concept, clearly labelled as an illustration. I pin an area and refine it, and the brief never changes silently.
+00:00:33,166 --> 00:00:40,937
+Gemini reads the words and the photo together, and writes a brief: what must stay the same, and what is just nice to have.
 
 6
-00:00:53,350 --> 00:01:06,081
-4 · Existing stock - An ADK graph workflow checks every route in parallel, with vector search over Gemini embeddings. This gorgeous bamboo station is rejected: twenty-two centimetres deep.
+00:00:41,599 --> 00:00:51,370
+Here is the brief. Every must-have - like the 18 centimetre depth - is kept unless you agree to change it. You can edit any of it, any time, on the right.
 
 7
-00:01:06,816 --> 00:01:14,907
-5 · Maker request - So I ask a maker. I see exactly what they will receive. No name, no address, no photos of my home.
+00:00:52,733 --> 00:01:00,744
+The design agent draws a concept from the brief, so you can picture it. It is clearly labelled as an illustration, never an offer.
 
 8
-00:01:19,883 --> 00:01:25,974
-6 · Counteroffer - The maker proposes its standard twenty-centimetre jig. MissionLock blocks it.
+00:01:01,666 --> 00:01:12,197
+Now the shopping agent and the maker scout search real stores and real makers that deliver to Chennai, using Google Search grounding. Every result links to its real page.
 
 9
-00:01:26,716 --> 00:01:35,807
-7 · Resolution - I keep eighteen. The maker returns a revised layout that fits. The small price rise is a flexible decision, and it is mine.
+00:01:12,833 --> 00:01:24,844
+No ready-made matches confirm depth under 18 cm, but custom makers can build it. Each listing was checked against the brief by plain code - a pretty one that is too deep never gets through.
 
 10
-00:01:36,550 --> 00:01:42,361
-8 · Device handoff - I can continue on my phone. The same decision follows me, with a spoken recap.
+00:01:25,766 --> 00:01:32,217
+If nothing ready-made fits, real makers can make it exactly. Tesselle writes the message for you.
 
 11
-00:01:49,616 --> 00:01:59,427
-9 · Approval - Approval is precise: one specification, one quote, one brief version. It is a sandbox order, so nothing is bought.
+00:01:33,133 --> 00:01:40,784
+The outreach agent wrote it - only your brief, never your name or address. You send it yourself, from your email or WhatsApp.
 
 12
-00:02:00,149 --> 00:02:04,920
-Milestones and sample evidence stay tied to the approved brief.
+00:01:41,899 --> 00:01:49,790
+When a maker replies, paste it or drop a screenshot. Here, a practice reply shows what happens when a seller pushes a change.
 
 13
-00:02:09,182 --> 00:02:17,513
-10 · Aftercare - After delivery, Gemini vision checks the photo against the checks I approved, and tells me what a photo cannot prove.
+00:01:50,433 --> 00:01:59,924
+The workshop wants a 20 centimetre depth to suit its tools. Your shelf allows 18 - so the fit checker stopped it, and the choice is yours.
 
 14
-00:02:21,416 --> 00:02:26,707
-Every agent step is on the record, with model, latency and tokens.
+00:02:00,833 --> 00:02:08,724
+Tesselle drafts your reply asking them to keep 18 centimetres. The practice workshop comes back with a layout that fits.
 
 15
-00:02:27,449 --> 00:02:35,860
-Glasses capture - And capture can start anywhere, even from smart glasses. Snap it, ask, and Tesselle answers out loud.
+00:02:09,299 --> 00:02:15,790
+One offer, one brief version, every must-have kept. Tesselle never pays or orders for you.
 
 16
-00:02:39,082 --> 00:02:44,573
-Project Tesselle. Imagine it. Keep what matters. Get it made.
+00:02:16,699 --> 00:02:21,350
+You confirm the order with the maker, and mark it when it arrives - on any device.
+
+17
+00:02:22,266 --> 00:02:28,637
+The delivery inspector compares a photo with the checks you agreed - and says honestly what a photo cannot prove.
+
+18
+00:02:29,566 --> 00:02:35,497
+From a sentence and a photo to a checked delivery, with every must-have kept. That's Tesselle.
+
+19
+00:02:36,599 --> 00:02:40,930
+Tesselle. Imagine it. Keep what matters. Get it made.
 

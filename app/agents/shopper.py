@@ -15,6 +15,7 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
+from html import unescape as html_unescape
 from typing import Any, Literal, Optional
 from urllib.parse import urlparse
 
@@ -146,8 +147,20 @@ async def _resolve(h: httpx.AsyncClient, uri: str) -> Optional[str]:
         return None
 
 
-_META = re.compile(r'<meta[^>]+(?:property|name)=["\'](og:image|og:title|twitter:image)["\'][^>]*content=["\']([^"\']+)', re.I)
-_META_REV = re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](og:image|og:title|twitter:image)["\']', re.I)
+_META = re.compile(r'<meta[^>]+(?:property|name)=["\'](og:image|og:title|og:site_name|twitter:image)["\'][^>]*content=["\']([^"\']+)', re.I)
+_META_REV = re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](og:image|og:title|og:site_name|twitter:image)["\']', re.I)
+_VAGUE_STORE = re.compile(r"not specified|unknown|unspecified|general search|n/a|various|online store", re.I)
+
+
+def _store_name(stated: str, url: str, site: Optional[str]) -> str:
+    """The store named in the search line if it matches the page's site; otherwise the site's own name."""
+    host = urlparse(url).netloc.lower().removeprefix("www.")
+    key = re.sub(r"[^a-z0-9]", "", (stated or "").lower().split(" ")[0])
+    if stated and not _VAGUE_STORE.search(stated) and key and key[:5] in host.replace("-", "").replace(".", ""):
+        return stated
+    if site and len(site) <= 40:
+        return html_unescape(site.strip())
+    return host.split(".")[0].replace("-", " ").title()
 
 
 async def _page_meta(h: httpx.AsyncClient, url: str) -> dict[str, Optional[str]]:
@@ -164,7 +177,7 @@ async def _page_meta(h: httpx.AsyncClient, url: str) -> dict[str, Optional[str]]
         img = found.get("og:image") or found.get("twitter:image")
         if img and img.startswith("//"):
             img = "https:" + img
-        return {"image": img if img and img.startswith("http") else None, "title": found.get("og:title")}
+        return {"image": img if img and img.startswith("http") else None, "title": found.get("og:title"), "site": found.get("og:site_name")}
     except Exception:
         return {}
 
@@ -264,19 +277,34 @@ def _attr_keys(b: Brief) -> str:
 
 async def find_listings(b: Brief, region: str) -> dict[str, Any]:
     city = region or "India"
+    want = f"They want: {b.title}. {b.purpose}\nMust-haves: {_musts(b)}\nNice to have: {_flex(b)}\nBudget: {_budget(b)}\n"
+    fmt = ("List up to 8 specific listings that are available now, closest to the must-haves first. One line each, exactly:\n"
+           "Product name | Store | Price in INR | Stated size or key specs | Availability\n"
+           "Only include products you actually found. Never invent products, prices or sizes.")
     prompt = (
-        f"Search the web for real product listings that a shopper in {city} can buy online now and have delivered there.\n"
-        f"They want: {b.title}. {b.purpose}\nMust-haves: {_musts(b)}\nNice to have: {_flex(b)}\nBudget: {_budget(b)}\n"
+        f"Search the web for real product listings that a shopper in {city} can buy online now and have delivered there.\n{want}"
         f"Check well-known stores that deliver to {city}, such as {STORES_IN}. Skip stores that do not ship to India.\n"
-        "Give individual product pages, not category or search pages.\n"
-        "List up to 8 specific listings that are available now, closest to the must-haves first. One line each, exactly:\n"
-        "Product name | Store | Price in INR | Stated size or key specs | Availability\n"
-        "Only include products you actually found. Never invent products, prices or sizes."
+        f"Give individual product pages, not category or search pages.\n{fmt}"
     )
-    text, chunks, supports, stats = await _grounded(prompt, "shopping-agent")
+    entries, stats = await _listing_round(b, city, prompt, "shopping-agent")
+    if sum(_serves_india(e["url"]) for e in entries) < 3:
+        # Too few deliverable results: search Indian marketplaces directly and merge.
+        prompt2 = (
+            f"Search Amazon.in, Flipkart, IKEA India, Pepperfry and other Indian online stores for product pages a shopper in "
+            f"{city} can order today.\n{want}Only stores that deliver in India.\n{fmt}"
+        )
+        more, stats2 = await _listing_round(b, city, prompt2, "shopping-agent-india")
+        known = {e["url"] for e in entries}
+        entries += [e for e in more if e["url"] not in known]
+        stats += stats2
+    return await _finish(b, city, entries, stats)
+
+
+async def _listing_round(b: Brief, city: str, prompt: str, purpose: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    text, chunks, supports, stats = await _grounded(prompt, purpose)
     lines = [l for l in _lines_with_sources(text, chunks, supports) if l["chunks"]][:10]
     if not lines:
-        return {"entries": [], "sources": [], "stats": [stats]}
+        return [], [stats]
 
     structured, s2 = await gemini.generate_structured(
         FoundListings,
@@ -312,7 +340,7 @@ async def find_listings(b: Brief, region: str) -> dict[str, Any]:
             domain = urlparse(url).netloc.removeprefix("www.")
             return {
                 "item_id": "web-" + _hid(url, it.name), "route": "buy", "name": it.name, "description": it.summary,
-                "seller_id": domain, "seller_name": it.store, "seller_label": domain, "url": url,
+                "seller_id": domain, "seller_name": _store_name(it.store, url, meta.get("site")), "seller_label": domain, "url": url,
                 "image_url": meta.get("image"), "image_path": None, "source_title": getattr(chunk.web, "title", None),
                 "specs": specs.model_dump(), "stock": it.availability, "checked_at": now, "price_inr": it.price_inr,
                 "shipping_inr": None, "shipping_estimate": False, "unresolved": ["Delivery charge and date: see checkout"],
@@ -326,6 +354,10 @@ async def find_listings(b: Brief, region: str) -> dict[str, Any]:
         if e and e["url"] not in seen:
             seen.add(e["url"])
             entries.append(e)
+    return entries, [stats, s2.as_dict()]
+
+
+async def _finish(b: Brief, city: str, entries: list[dict[str, Any]], stats: list[dict[str, Any]]) -> dict[str, Any]:
     # Prefer real product pages: drop category / search pages when enough product pages were found.
     products = [e for e in entries if not _is_listing_index(e["url"])]
     if len(products) >= 3:
@@ -338,9 +370,14 @@ async def find_listings(b: Brief, region: str) -> dict[str, Any]:
         if not _serves_india(e["url"]):
             e["unresolved"] = [f"May not deliver to {city} - check the store page"] + e["unresolved"]
     await _rank(b, entries)
+    # Drop look-alikes that are clearly a different kind of product (far below the best match).
+    rel = [e["relevance"] for e in entries if e.get("relevance") is not None]
+    if rel:
+        close = [e for e in entries if e.get("relevance") is None or e["relevance"] >= max(rel) - 0.12]
+        if len(close) >= 2:
+            entries = close
     sources = sorted({(e["seller_name"], e["seller_label"]) for e in entries})
-    return {"entries": entries, "sources": [{"name": n, "domain": d, "kind": "store"} for n, d in sources],
-            "stats": [stats, s2.as_dict()]}
+    return {"entries": entries, "sources": [{"name": n, "domain": d, "kind": "store"} for n, d in sources], "stats": stats}
 
 
 async def find_makers(b: Brief, region: str) -> dict[str, Any]:

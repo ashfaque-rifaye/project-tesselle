@@ -71,6 +71,11 @@ def tts(key: str, text: str) -> Path:
     return p
 
 
+def _ts(t: float) -> str:
+    h, m, s = int(t // 3600), int(t % 3600 // 60), t % 60
+    return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
+
+
 def esc(t: str) -> str:
     return t.replace("\\", "\\\\").replace(":", "\\:").replace("'", "’").replace("%", "\\%")
 
@@ -87,10 +92,8 @@ def main() -> None:
     # Beats: home (trimmed), then each demo caption until the next.
     beats = []
     for i, m in enumerate(marks):
-        a = m["t"] if i else 0.3
+        a = m["t"] if i else max(0.3, m["t"] - 1.0)  # home: start once the page (and its 3D scene) has loaded
         b = marks[i + 1]["t"] if i + 1 < len(marks) else end
-        if i == 0:
-            b = min(b, a + 5.0)  # a few seconds of the home page, then cut to the demo
         vo_text = HOME_VO if i == 0 else m["text"]
         beats.append({"key": f"b{i:02d}", "a": a, "b": b, "vo": vo_text, "title": m["title"]})
     for bt in beats:
@@ -182,6 +185,10 @@ def main() -> None:
     total = duration(body)
     placed = [(intro_vo, 0.3), (outro_vo, acc + 0.4)]
     placed += [(OUT / f"vo-{bt['key']}.wav", starts[bt["key"]] + 0.2) for bt in beats if bt["vo"] and bt["key"] in starts]
+    # Captions file (for the video host) from the same narration lines.
+    texts = {intro_vo: INTRO_VO, outro_vo: OUTRO_VO, **{OUT / f"vo-{bt['key']}.wav": bt["vo"] for bt in beats if bt["vo"]}}
+    cues = sorted((st, st + duration(w), texts[w]) for w, st in placed)
+    (OUT / "captions.srt").write_text("".join(f"{i + 1}\n{_ts(a)} --> {_ts(b)}\n{t}\n\n" for i, (a, b, t) in enumerate(cues)), encoding="utf-8")
     inputs, filters = [], []
     for i, (wav, st) in enumerate(placed):
         inputs += ["-i", str(wav)]
