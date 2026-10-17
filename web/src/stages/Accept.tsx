@@ -10,9 +10,16 @@ const RESULT: Record<string, { label: string; tone: string; icon: JSX.Element }>
   cannot_tell_from_photo: { label: "Can't tell from a photo", tone: "amber", icon: <CircleHelp size={16} color="var(--amber)" /> },
 };
 
+export function pickOrder(ctx: StageCtx) {
+  const { state, params } = ctx;
+  const live = (state.orders || []).filter((o) => o.status !== "cancelled");
+  return live.find((o) => o.id === params.get("order")) || live.find((o) => o.id === state.next_decision.order_id)
+    || live.find((o) => o.delivery_check && !o.delivery_check.outcome) || state.order;
+}
+
 export function DeliveryCheck({ ctx, compact = false }: { ctx: StageCtx; compact?: boolean }) {
-  const { state, pid, busy, lines } = ctx;
-  const order = state.order;
+  const { pid, busy, lines } = ctx;
+  const order = pickOrder(ctx);
   const input = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState("");
   if (!order) return <div className="empty">Nothing chosen yet.</div>;
@@ -22,6 +29,7 @@ export function DeliveryCheck({ ctx, compact = false }: { ctx: StageCtx; compact
     const fd = new FormData();
     if (file) fd.append("photo", file);
     else fd.append("use_sample", "true");
+    fd.append("order_id", order!.id);
     try {
       await ctx.streamAct("Checking the delivery", `/api/projects/${pid}/delivery-check`, fd, "Delivery checked");
     } catch {
@@ -29,7 +37,7 @@ export function DeliveryCheck({ ctx, compact = false }: { ctx: StageCtx; compact
     }
   }
   const close = (outcome: "accept" | "issue") =>
-    ctx.act("Saving", `/api/projects/${pid}/delivery-close`, { outcome, note }, outcome === "accept" ? "All done - it matches your brief" : "Problem recorded with the photo");
+    ctx.act("Saving", `/api/projects/${pid}/delivery-close`, { outcome, note, order_id: order.id }, outcome === "accept" ? "All done - it matches your brief" : "Problem recorded with the photo");
 
   return (
     <div className="section">
@@ -85,7 +93,8 @@ export function DeliveryCheck({ ctx, compact = false }: { ctx: StageCtx; compact
 }
 
 export default function Accept({ ctx }: { ctx: StageCtx }) {
-  const order = ctx.state.order;
+  const order = pickOrder(ctx);
+  const live = (ctx.state.orders || []).filter((o) => o.status !== "cancelled");
   const dc = order?.delivery_check;
   usePrimary(ctx, !dc ? { label: "Try with a sample photo", onClick: () => (document.querySelector('[data-pilot="sample-photo"]') as HTMLElement | null)?.click(), icon: <ImageIcon size={16} />, hint: "Or take a photo of what arrived" }
     : !dc.outcome ? { label: "Happy with it", onClick: () => (document.querySelector('[data-pilot="accept-item"]') as HTMLElement | null)?.click(), icon: <CheckCircle2 size={16} />, hint: "Or report a problem above" }
@@ -99,6 +108,15 @@ export default function Accept({ ctx }: { ctx: StageCtx }) {
           <p>Gemini compares a photo with the checks you agreed - and says honestly what a photo can't prove.</p>
         </div>
       </div>
+      {live.length > 1 && (
+        <div className="row wrap" style={{ gap: 6 }}>
+          {live.map((o) => (
+            <button key={o.id} className={`chip clickable ${o.id === order?.id ? "volt" : ""}`} onClick={() => ctx.go("accept", `order=${o.id}`)}>
+              {o.delivery_check?.outcome ? "✓ " : ""}{o.title.slice(0, 34)}
+            </button>
+          ))}
+        </div>
+      )}
       <DeliveryCheck ctx={ctx} />
     </div>
   );

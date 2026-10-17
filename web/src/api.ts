@@ -48,8 +48,29 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+const OWNER_KEY = "tsl.owner";
+
+/** The owner key unlocks sending from the owner's connected inbox and phone line on this device. */
+export function ownerKey(): string {
+  try { return localStorage.getItem(OWNER_KEY) || ""; } catch { return ""; }
+}
+export function setOwnerKey(k: string) {
+  try { if (k) localStorage.setItem(OWNER_KEY, k.trim()); else localStorage.removeItem(OWNER_KEY); } catch { /* ignore */ }
+}
+
+/** A short id for this device, so another device can tell who moved (follow mode). */
+export function deviceId(): string {
+  try {
+    let d = sessionStorage.getItem("tsl.device");
+    if (!d) { d = (window.innerWidth < 760 ? "phone-" : "desktop-") + Math.random().toString(36).slice(2, 8); sessionStorage.setItem("tsl.device", d); }
+    return d;
+  } catch { return "device"; }
+}
+
 export function headers(json = true): HeadersInit {
   const h: Record<string, string> = { "X-Visitor-Id": visitorId() };
+  const k = ownerKey();
+  if (k) h["X-Owner-Key"] = k;
   if (json) h["Content-Type"] = "application/json";
   return h;
 }
@@ -103,6 +124,12 @@ export async function stream(
 }
 
 export const media = (path?: string | null) => (path ? `${API}/api/media/${path}` : "");
+
+/** Store product photos go through Tesselle's image proxy (some stores block hotlinking). */
+export const img = (url?: string | null) => (url ? `${API}/api/img?u=${encodeURIComponent(url)}` : "");
+
+/** WebSocket base for the live voice agent. */
+export const wsBase = () => (API || window.location.origin).replace(/^http/, "ws");
 
 export const inr = (v?: number | null) =>
   v === null || v === undefined ? "Not yet known" : "₹" + Math.round(v).toLocaleString("en-IN");

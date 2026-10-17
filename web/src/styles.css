@@ -107,10 +107,9 @@ button { font: inherit; }
 input, textarea, select { font: inherit; color: inherit; }
 ::selection { background: rgba(215, 255, 60, 0.35); color: #fff; }
 :focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; border-radius: 12px; }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.2); }
-::-webkit-scrollbar-track { background: transparent; }
+/* Scrollbars hidden everywhere - every panel still scrolls by wheel, touch and keyboard. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .grad-text { color: var(--volt); }
 .soft-text { color: rgba(242, 246, 244, 0.48); }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowRight, ArrowUpRight, Ban, Camera, Check, Glasses, ImagePlus, Loader2, Lock, Mic, PackageCheck, PlayCircle, ShieldCheck,
-  Sparkles, X,
+  Archive, ArchiveRestore, ArrowRight, ArrowUpRight, Ban, Camera, Check, Glasses, ImagePlus, Loader2, Lock, Mic, Package, PackageCheck, Pencil,
+  PlayCircle, ShieldCheck, Sparkles, X,
 } from "lucide-react";
 import { ago, get, post } from "../api";
 import HeroScene from "../components/HeroScene";
@@ -124,6 +124,22 @@ export default function Hub() {
   const toast = useToast();
   const [cards, setCards] = useState<Card[] | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
+  const [archived, setArchived] = useState<Card[] | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const reload = () => get<Card[]>("/api/projects").then(setCards).catch(() => setCards([]));
+  async function rename(id: string) {
+    if (!newName.trim()) return setRenaming(null);
+    await post(`/api/projects/${id}/edit`, { title: newName.trim() }).catch((e) => toast((e as Error).message, true));
+    setRenaming(null);
+    reload();
+  }
+  async function archive(id: string, on: boolean) {
+    await post(`/api/projects/${id}/edit`, { archived: on }).catch((e) => toast((e as Error).message, true));
+    reload();
+    if (archived) get<Card[]>("/api/projects?archived=true").then(setArchived).catch(() => {});
+    toast(on ? "Archived - restore it any time below" : "Restored");
+  }
   const promo = useRef<HTMLVideoElement>(null);
   useReveal();
 
@@ -186,7 +202,7 @@ export default function Hub() {
               <button className="btn lg" onClick={() => create(false, "new")} disabled={!!creating}>{spin("new", <Sparkles size={16} />)} Start my own project</button>
               <button className="btn lg ghost" onClick={() => create(false, "glasses", "glasses")} disabled={!!creating}><Glasses size={17} /> Glasses mode</button>
             </div>
-            <div className="tiny muted">No sign-up · real stores and makers, found live · Tesselle never pays or orders for you</div>
+            <div className="tiny muted">No sign-up · real stores and makers, found live · talk to it, it does the work · you only authorise payment</div>
           </div>
 
           <MissionCard onLaunch={() => create(true, "demo")} busy={!!creating} />
@@ -344,7 +360,10 @@ export default function Hub() {
       <section className="home-section" id="projects">
         <div className="row between reveal">
           <span className="eyebrow-pill glass"><span className="dot" /> 06 · Your projects</span>
-          {cards && cards.length > 0 && <span className="tiny muted">Decisions first</span>}
+          <span className="row" style={{ gap: 8 }}>
+            <a className="btn sm" href="/orders"><Package size={14} /> Order history</a>
+            <button className="btn sm ghost" onClick={() => get<Card[]>("/api/projects?archived=true").then(setArchived).catch(() => setArchived([]))}><Archive size={14} /> Archived</button>
+          </span>
         </div>
         {cards === null ? (
           <div className="empty"><Loader2 className="spin" /> Loading...</div>
@@ -355,10 +374,17 @@ export default function Hub() {
         ) : (
           <div className="proj-grid">
             {cards.map((c) => (
-              <div key={c.project.id} className="card proj-card" onClick={() => go(`/p/${c.project.id}`)}>
-                <div className="row between">
-                  <span className="strong" style={{ fontFamily: "var(--display)", fontSize: 17, letterSpacing: "-.02em" }}>{c.project.title}</span>
-                  {c.brief_version ? <span className="chip muted">v{c.brief_version}</span> : null}
+              <div key={c.project.id} className="card proj-card" onClick={() => renaming !== c.project.id && go(`/p/${c.project.id}`)}>
+                <div className="row between" style={{ gap: 6 }}>
+                  {renaming === c.project.id ? (
+                    <input className="input sm" autoFocus value={newName} onClick={(e) => e.stopPropagation()} onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && rename(c.project.id)} onBlur={() => rename(c.project.id)} />
+                  ) : <span className="strong" style={{ fontFamily: "var(--display)", fontSize: 17, letterSpacing: "-.02em" }}>{c.project.title}</span>}
+                  <span className="row" style={{ gap: 2 }} onClick={(e) => e.stopPropagation()}>
+                    {c.brief_version ? <span className="chip muted">v{c.brief_version}</span> : null}
+                    <button className="btn sm ghost icon-btn" title="Rename" aria-label="Rename project" onClick={() => { setRenaming(c.project.id); setNewName(c.project.title); }}><Pencil size={13} /></button>
+                    <button className="btn sm ghost icon-btn" title="Archive" aria-label="Archive project" onClick={() => archive(c.project.id, true)}><Archive size={13} /></button>
+                  </span>
                 </div>
                 <div className="small muted clamp2">{c.last_event?.summary || "Created"}</div>
                 <div className="next-card frost" style={{ padding: 13 }}>
@@ -372,9 +398,26 @@ export default function Hub() {
         )}
       </section>
 
+      {archived && (
+        <section className="home-section">
+          <div className="row between"><span className="eyebrow-pill glass"><span className="dot" /> Archived</span><button className="btn sm ghost" onClick={() => setArchived(null)}><X size={14} /> Hide</button></div>
+          {!archived.length ? <div className="small muted">Nothing archived.</div> : (
+            <div className="proj-grid">
+              {archived.map((c) => (
+                <div key={c.project.id} className="card proj-card">
+                  <span className="strong">{c.project.title}</span>
+                  <div className="small muted clamp2">{c.last_event?.summary}</div>
+                  <button className="btn sm" onClick={() => archive(c.project.id, false)}><ArchiveRestore size={14} /> Restore</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       <footer className="home-footer">
         Project Tesselle · Google Cloud AI Builder Cup 2026 · Retail &amp; Commerce<br />
-        Listings and makers come from live web search. Tesselle never pays, orders or sends messages for you. Scenery generated with Gemini; promo media with Canva AI.
+        Listings and makers come from live web search. Tesselle's agents prepare orders and messages; payment always happens on the store. Scenery generated with Gemini; promo media with Canva AI.
       </footer>
     </div>
   );

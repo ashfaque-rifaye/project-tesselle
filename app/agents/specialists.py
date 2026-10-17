@@ -61,8 +61,9 @@ Rules:
   "phone slot", "card slot", "usb-c"). One requirement per feature so each can be traded off.
 - Budget: budget_target_inr = what they would like to spend; budget_limit_inr only for an absolute
   ceiling. Do not add budget as a requirement.
-- Unknowns: at most 3, each the smallest useful next question with why it matters. Never ask about
-  something already stated.
+- Unknowns: at most 3, each the smallest useful next question with why it matters, with a short
+  `topic` key. Never ask about something already stated (no budget question when a budget was given,
+  no city question when a city was given). Only ask what would change which products fit.
 - Acceptance checks: 3-5 concrete checks for delivery day, drawn from the must-haves.
 - Ids are short kebab-case slugs (max-depth, no-drilling, phone-slot, material).
 - Out of scope (out_of_scope true, with a kind reason): weapons, medicines, hazardous or regulated
@@ -89,7 +90,12 @@ intake_agent = LlmAgent(
 
 class BriefEffect(BaseModel):
     requirement_id: Optional[str] = Field(default=None, description="Existing requirement id affected, if any.")
-    suggestion: str = Field(description="One sentence the customer can accept to update the brief.")
+    suggestion: str = Field(description="One short sentence saying what changes in the brief, e.g. 'Width 30 cm -> 25 cm'.")
+    new_requirement: Optional[Requirement] = Field(
+        default=None,
+        description="The requirement exactly as it should read after this edit: same id to update an existing one, a new "
+        "kebab-case id to add one. Use the customer's stated value; for a vague direction with no value (e.g. 'narrower') "
+        "use a flexible qualitative requirement (op 'text'). Null when the edit does not touch the brief.")
 
 
 class ConceptDirection(BaseModel):
@@ -108,8 +114,10 @@ Given the brief and (optionally) the customer's refinement instruction:
   no people. Respect every must-have visually.
 - If the instruction refers to a marked area, say "apply the change only to the area marked by the
   ring in the reference image, and remove the ring".
-- If the instruction implies a change to the brief (e.g. "make it narrower"), list it in
-  brief_effects. A visual edit never silently changes the brief - the customer decides.
+- If the instruction changes something the brief records (a size, material, colour, feature), list it in
+  brief_effects with new_requirement filled. The customer's own instruction is applied to the brief and
+  they are told exactly what changed, with a one-tap revert. Never invent a number the customer did
+  not give: "make it narrower" without a value becomes a flexible "Narrower profile" requirement.
 - Never imitate a protected branded design; offer an original design with the same function.
 """
 
@@ -180,20 +188,21 @@ class OutreachDrafts(BaseModel):
 
 
 OUTREACH_INSTRUCTION = """
-You are the outreach agent. You write short messages the customer will send THEMSELVES to real
-businesses (makers, workshops, sellers) to ask for a quote or a change. You never send anything.
+You are the outreach agent. You write short messages Tesselle sends for the customer to real
+businesses (makers, workshops, sellers) to ask for a quote or a change. The customer approves each one.
 
 Each message: one line on what they want, then the must-haves as a short list ("must stay the same")
-and the nice-to-haves, the budget only if the brief says it may be shared, the delivery city, and a
-clear ask: "Could you confirm which of these you can meet, a price with any delivery or extra
-charges, and how long it would take?". Never include the customer's name, phone, email or address.
+and the nice-to-haves, the budget only if the brief says it may be shared, the delivery city (and PIN
+code if given), one short line about any attached photos, and a clear ask: "Could you confirm which of
+these you can meet, a price with any delivery or extra charges, and how long it would take?".
+Never include the customer's name, phone, email or street address.
 Write in plain, polite English. For a follow-up after a counteroffer, politely restate the
 requirement the customer kept and ask whether they can meet it, e.g. with a different layout.
 """
 
 outreach_writer = LlmAgent(
     name="outreach_agent",
-    description="Drafts quote requests and follow-ups the customer sends to real businesses.",
+    description="Drafts quote requests and follow-ups that Tesselle sends to real businesses for the customer.",
     model=model(),
     instruction=OUTREACH_INSTRUCTION,
     output_schema=OutreachDrafts,

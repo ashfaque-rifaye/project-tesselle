@@ -8,8 +8,12 @@ Layout (Native mode, asia-southeast1):
   projects/{pid}/routes/latest        last route exploration (buy / source / customise / make)
   projects/{pid}/requests/{rid}       customer-approved seller requests
   projects/{pid}/quotes/{qid}         seller quotes, each tied to one brief version
-  projects/{pid}/orders/{oid}         sandbox orders (no money moves)
+  projects/{pid}/cart/{cid}           the customer's picks (several items per project)
+  projects/{pid}/orders/{oid}         orders prepared by the checkout agent (payment happens on the store)
+  projects/{pid}/notes/{nid}          the customer's own notes (typed or dictated)
+  projects/{pid}/calls/{cid}          calls the outreach agent made (transcripts)
   projects/{pid}/events/{eid}         activity + agent evidence trace
+  owners/{owner}/orders/{oid}         orders found in the customer's connected inbox (order history)
 
 """
 
@@ -120,10 +124,24 @@ async def touch(pid: str) -> None:
     await update_project(pid)
 
 
-async def list_projects(owner: str, limit: int = 20) -> list[dict[str, Any]]:
+async def list_projects(owner: str, limit: int = 40) -> list[dict[str, Any]]:
     q = db().collection("projects").where(filter=firestore.FieldFilter("owner", "==", owner)).limit(limit)
     items = [s.to_dict() async for s in q.stream()]
     return sorted(items, key=lambda p: p.get("updated_at", ""), reverse=True)
+
+
+async def set_fields(pid: str, **fields: Any) -> None:
+    """Update without bumping the revision (live status and device view - polled separately)."""
+    await _proj(pid).update(fields)
+
+
+async def owner_orders(owner: str) -> list[dict[str, Any]]:
+    coll = db().collection("owners").document(owner).collection("orders")
+    return [s.to_dict() async for s in coll.stream()]
+
+
+async def put_owner_order(owner: str, oid: str, data: dict[str, Any]) -> None:
+    await db().collection("owners").document(owner).collection("orders").document(oid).set(data)
 
 
 # ---- Brief versions ---------------------------------------------------------------------------
@@ -261,7 +279,7 @@ async def full_state(pid: str) -> Optional[dict[str, Any]]:
     project = await get_project(pid)
     if not project:
         return None
-    briefs, concepts, requests, quotes, orders, evs, routes = await asyncio.gather(
+    briefs, concepts, requests, quotes, orders, evs, routes, cart, notes, calls, looks = await asyncio.gather(
         list_briefs(pid),
         list_coll(pid, "concepts"),
         list_coll(pid, "requests"),
@@ -269,8 +287,13 @@ async def full_state(pid: str) -> Optional[dict[str, Any]]:
         list_coll(pid, "orders"),
         events(pid),
         get(pid, "routes", "latest"),
+        list_coll(pid, "cart", order="added_at"),
+        list_coll(pid, "notes"),
+        list_coll(pid, "calls"),
+        list_coll(pid, "looks"),
     )
     _annotate_quotes(quotes, briefs)
+    live = [o for o in orders if o.get("status") != "cancelled"]
     return {
         "project": project,
         "briefs": [b.model_dump() for b in briefs],
@@ -278,7 +301,12 @@ async def full_state(pid: str) -> Optional[dict[str, Any]]:
         "routes": routes,
         "requests": requests,
         "quotes": quotes,
-        "order": orders[-1] if orders else None,
+        "order": live[-1] if live else None,
+        "orders": orders,
+        "cart": cart,
+        "notes": notes,
+        "calls": calls,
+        "looks": looks,
         "events": evs,
     }
 

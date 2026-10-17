@@ -29,7 +29,9 @@ log = logging.getLogger(__name__)
 
 
 def _city(brief: Brief) -> str:
-    return (brief.delivery.region or "").split(",")[0].strip()
+    city = (brief.delivery.region or "").split(",")[0].strip()
+    pin = brief.delivery.pincode
+    return f"{city} (PIN {pin})" if city and pin else city
 
 
 # ---- Workflow nodes (parameters are bound from session state by name) -------------------------

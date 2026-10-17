@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
-import { AlertTriangle, Ban, Check, CheckCircle2, Copy, FlaskConical, ImagePlus, Inbox, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, Ban, Check, CheckCircle2, Copy, FlaskConical, ImagePlus, Inbox, Mail, MailSearch, ShieldCheck, Sparkles } from "lucide-react";
+import MicButton from "../components/MicButton";
+import { useChannels } from "../components/ProjectMenu";
 import { ago, inr } from "../api";
 import { Banner, ProgressStrip, useToast } from "../components/ui";
 import { BigStat } from "../components/Viz";
@@ -95,11 +97,14 @@ export default function Compare({ ctx }: { ctx: StageCtx }) {
     }
   }
   const practice = () => ctx.streamAct("Practice reply", `/api/projects/${pid}/replies/simulate`, { request_id: req?.id || null }, "Practice reply checked").catch(() => {});
+  const { st } = useChannels();
+  const checkInbox = () => ctx.streamAct("Checking your inbox", `/api/projects/${pid}/replies/check`, {}, "Inbox checked").catch(() => {});
+  const pick = (qid: string) => ctx.act("Adding to your picks", `/api/projects/${pid}/cart`, { quote_id: qid }, "Added to your picks").then(() => ctx.go("approve")).catch(() => {});
 
   const ready = active.find((q) => q.readiness === "ready" && q.status === "active");
   const pending = active.some((q) => q.deviations.some((d) => d.decision === "pending"));
   usePrimary(ctx, ready
-    ? { label: `Choose ${ready.seller_name}'s offer`, onClick: () => ctx.go("approve", `quote=${ready.id}`), icon: <Check size={16} />, hint: "This offer keeps every must-have" }
+    ? { label: `Add ${ready.seller_name}'s offer`, onClick: () => pick(ready.id), icon: <Check size={16} />, hint: "This offer keeps every must-have - it goes to your picks" }
     : pending
       ? { label: "Decide above", onClick: () => document.querySelector(".decision")?.scrollIntoView({ behavior: "smooth", block: "center" }), hint: "A seller wants to change something - you decide" }
       : { label: "Read the reply", onClick: read, disabled: !text.trim() && !img, icon: <Sparkles size={16} />, hint: "Paste a reply or add a screenshot - Gemini checks it" });
@@ -110,8 +115,9 @@ export default function Compare({ ctx }: { ctx: StageCtx }) {
         <div>
           <div className="eyebrow">Replies</div>
           <h2>Replies, checked for you</h2>
-          <p>Paste a seller's email or chat, or drop a screenshot. Gemini reads it and the fit checker compares it with your must-haves.</p>
+          <p>Email replies and call answers arrive here by themselves; you can also paste a chat or drop a screenshot. Gemini reads each one and the fit checker compares it with your must-haves.</p>
         </div>
+        {st?.email && st.owner && req?.ref && <button className="btn sm" onClick={checkInbox} disabled={!!busy} data-pilot="check-inbox"><MailSearch size={14} /> Check inbox now</button>}
       </div>
 
       <div className="composer-card glass">
@@ -129,8 +135,9 @@ export default function Compare({ ctx }: { ctx: StageCtx }) {
             <FlaskConical size={14} /> Try a practice reply
           </button>
         </div>
-        <textarea className="textarea" style={{ minHeight: 90 }} placeholder="Paste their reply here..." value={text} onChange={(e) => setText(e.target.value)} />
+        <textarea className="textarea" style={{ minHeight: 90 }} placeholder="Paste their reply here - or tell it what they said on the phone" value={text} onChange={(e) => setText(e.target.value)} />
         <div className="row" style={{ gap: 8 }}>
+          <MicButton value={text} onChange={setText} label="Say what they told you" />
           <button className="btn sm" onClick={() => file.current?.click()}><ImagePlus size={14} /> {img ? img.name : "Add a screenshot"}</button>
           <input ref={file} type="file" accept="image/*,application/pdf" hidden onChange={(e) => setImg(e.target.files?.[0] || null)} />
         </div>

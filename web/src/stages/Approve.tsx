@@ -1,108 +1,115 @@
-import { useMemo, useState } from "react";
-import { ArrowUpRight, Check, CheckCircle2, CircleHelp, ShieldCheck, XCircle } from "lucide-react";
-import { inr, media } from "../api";
+import { useState } from "react";
+import { Minus, Package, Plus, ShieldCheck, ShoppingBag, Trash2 } from "lucide-react";
+import { img, inr, media } from "../api";
 import { Banner, ProgressStrip, favicon } from "../components/ui";
+import type { CartItem } from "../types";
 import { brief as currentBrief, usePrimary, type StageCtx } from "./ctx";
-import { knownTotal } from "./Compare";
 
-/** Choose one option for one brief version. Tesselle never pays or orders - the customer buys directly. */
+const ACK_TEXT: Record<string, string> = {
+  check_on_store: "I'll check the details marked below on the store page before paying",
+  confirm_with_seller: "I'll confirm the details marked below with the maker before paying",
+  unresolved_charges: "I understand some charges aren't known yet",
+};
+
+function PickCard({ c, ctx }: { c: CartItem; ctx: StageCtx }) {
+  const { pid, busy } = ctx;
+  const photo = c.image_path ? media(c.image_path) : c.image_url ? img(c.image_url) : "";
+  return (
+    <div className="card pick">
+      <div className="pick-img">{photo ? <img src={photo} alt="" referrerPolicy="no-referrer" /> : <img className="fav" src={favicon(c.seller_id || "", 64)} alt="" />}</div>
+      <div className="grow col" style={{ gap: 6 }}>
+        <div className="row" style={{ gap: 6 }}><img className="store-fav" src={favicon(c.seller_id || "")} alt="" /><span className="tiny muted">{c.seller_name} · {c.kind === "maker" ? "made for you" : "store"}</span></div>
+        <div className="strong clamp2">{c.title}</div>
+        {Object.values(c.needs || {}).map((n, i) => <div key={i} className="tiny" style={{ color: "var(--amber-ink)" }}>• {n}</div>)}
+        <div className="row between wrap" style={{ gap: 8 }}>
+          <div className="qty">
+            <button disabled={!!busy || c.qty <= 1} onClick={() => ctx.act("Updating", `/api/projects/${pid}/cart/${c.id}`, { qty: c.qty - 1 })} aria-label="One less"><Minus size={13} /></button>
+            <span>{c.qty}</span>
+            <button disabled={!!busy || c.qty >= 20} onClick={() => ctx.act("Updating", `/api/projects/${pid}/cart/${c.id}`, { qty: c.qty + 1 })} aria-label="One more"><Plus size={13} /></button>
+          </div>
+          <span className="num" style={{ fontSize: 20 }}>{c.price_inr != null ? inr(c.price_inr * c.qty) : "Price on request"}</span>
+          <button className="btn sm ghost" disabled={!!busy} onClick={() => ctx.act("Removing", `/api/projects/${pid}/cart/${c.id}`, { remove: true }, "Removed from your picks")}>
+            <Trash2 size={13} /> Remove
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Your picks: one or more options (from stores and makers), each cleared by the fit checker. Placing the
+ *  order hands each one to the checkout agent; payment always happens on the store. */
 export default function Approve({ ctx }: { ctx: StageCtx }) {
   const { state, pid, busy, lines, params } = ctx;
-  const b = currentBrief(state)!;
-  const entries = state.routes?.entries || [];
-  const order = state.order;
-  const quoteId = order ? order.quote_id || "" : params.get("quote") || state.next_decision.quote_id || "";
-  const entryId = order ? order.entry_id || "" : params.get("entry") || "";
-  const quote = state.quotes.find((q) => q.id === quoteId && (order || q.status === "active" || q.status === "approved"))
-    || (!entryId && !order ? state.quotes.filter((q) => q.status === "active").find((q) => q.readiness === "ready") : undefined);
-  const entry = !quote ? entries.find((e) => e.item_id === entryId) || (!order ? entries.find((e) => e.route === "buy" && e.verdict === "meets") : undefined) : undefined;
+  const b = currentBrief(state);
+  const cart = state.cart || [];
+  const orders = (state.orders || []).filter((o) => o.status !== "cancelled");
   const [acks, setAcks] = useState<string[]>([]);
   const [blockers, setBlockers] = useState<string[]>([]);
-  const idem = useMemo(() => `${pid}-${quote?.id || entry?.item_id}-${Date.now()}`, [pid, quote?.id, entry?.item_id]);
-  const chosen = !!order;
+  const needed = Array.from(new Set(cart.flatMap((c) => Object.keys(c.needs || {}))));
+  const total = cart.reduce((a, c) => a + (c.price_inr || 0) * c.qty, 0);
+  const unknownPrice = cart.some((c) => c.price_inr == null);
+  const pending = params.get("entry") || params.get("quote");
+  const pendingEntry = pending && !cart.some((c) => c.entry_id === pending || c.quote_id === pending)
+    ? state.routes?.entries.find((e) => e.item_id === params.get("entry")) : undefined;
 
-  const unknownMusts = entry ? entry.checks.filter((c) => c.kind === "must" && c.result === "unknown") : [];
-  const unresolved = quote ? quote.price_lines.filter((p) => p.amount_inr == null || p.kind === "unresolved") : [];
-  const toConfirm = quote?.to_confirm || [];
-  const needed = [...(unknownMusts.length ? ["check_on_store"] : []), ...(unresolved.length ? ["unresolved_charges"] : []),
-    ...(toConfirm.length ? ["confirm_with_seller"] : [])];
-
-  async function choose() {
+  async function place() {
     setBlockers([]);
     try {
-      await ctx.act("Saving your choice", `/api/projects/${pid}/choose`,
-        { entry_id: entry?.item_id || null, quote_id: quote?.id || null, idempotency_key: idem, acknowledgements: acks }, "Chosen - now buy it directly");
+      await ctx.act("Preparing your orders", `/api/projects/${pid}/orders`, { acknowledgements: acks }, "Orders prepared - pay on the store");
       ctx.go("fulfil");
     } catch (e) {
       setBlockers(((e as { details?: string[] }).details) || []);
     }
   }
 
-  usePrimary(ctx, chosen
-    ? { label: "Track it", onClick: () => ctx.go("fulfil"), hint: "You've chosen - follow it to your door" }
-    : { label: "Choose this", onClick: choose, disabled: !(quote || entry) || needed.some((n) => !acks.includes(n)), icon: <ShieldCheck size={16} />,
-        hint: needed.some((n) => !acks.includes(n)) ? "Tick the boxes above first" : "One option, one brief version - no payment happens here" });
-
-  if (!quote && !entry && !order) return <div className="empty">Nothing to choose yet - pick an option or accept a reply first.</div>;
-  const title = quote ? quote.title : entry ? entry.name : order!.title;
-  const seller = quote ? quote.seller_name : entry ? entry.seller_name : order!.seller_name;
-  const price = quote ? knownTotal(quote) : entry ? entry.price_inr : order!.known_total_inr;
-  const img = quote?.image_path ? media(quote.image_path) : entry?.image_url || order?.image_url || undefined;
-  const toggle = (k: string) => setAcks(acks.includes(k) ? acks.filter((x) => x !== k) : [...acks, k]);
+  usePrimary(ctx, cart.length
+    ? { label: `Place order${cart.length > 1 ? "s" : ""}`, onClick: place, disabled: needed.some((n) => !acks.includes(n)), icon: <ShoppingBag size={16} />,
+        hint: needed.some((n) => !acks.includes(n)) ? "Tick the boxes above first" : "The checkout agent fills each store cart - you only authorise payment" }
+    : orders.length
+      ? { label: "See your orders", onClick: () => ctx.go("fulfil"), icon: <Package size={16} />, hint: "Or add more options to your picks" }
+      : { label: "Pick options", onClick: () => ctx.go("routes"), hint: "Add one or more options from the Options step" });
 
   return (
     <div className="section">
       <div className="stage-head">
         <div>
-          <div className="eyebrow">Choose</div>
-          <h2>{chosen ? "Your choice" : "Ready to choose?"}</h2>
-          <p>{chosen ? `Chosen for brief v${order!.brief_version}. Buy it directly from ${order!.seller_name}, then track it here.`
-            : "Check it once more against your brief. Tesselle never pays or orders for you - you buy directly from the seller."}</p>
+          <div className="eyebrow">Your picks</div>
+          <h2>{cart.length ? `${cart.length} pick${cart.length > 1 ? "s" : ""}, ready to order` : orders.length ? "All ordered" : "Nothing picked yet"}</h2>
+          <p>Mix stores and makers. Every pick was checked against your brief{b ? ` (v${b.version})` : ""}; the checkout agent prepares each order and you authorise payment on the store.</p>
         </div>
+        <button className="btn sm" onClick={() => ctx.go("routes")}><Plus size={14} /> Add more</button>
       </div>
-      <div className="choose-grid">
-        <div className="card pad section">
-          {img ? <img src={img} alt={title} className="choose-img" referrerPolicy="no-referrer" /> : null}
-          <div className="row" style={{ gap: 8 }}>{entry && <img className="store-fav" src={favicon(entry.seller_id)} alt="" />}<span className="small muted">{seller}</span></div>
-          <div style={{ fontFamily: "var(--display)", fontSize: 22, letterSpacing: "-.03em", lineHeight: 1.2 }}>{title}</div>
-          <div className="row between"><span className="num" style={{ fontSize: 30 }}>{price != null ? inr(price) : "Price on request"}</span>
-            {(entry?.url || order?.url) && <a className="btn sm light" href={(entry?.url || order?.url)!} target="_blank" rel="noreferrer">Open on {seller.split(" ")[0]} <ArrowUpRight size={13} /></a>}</div>
+
+      {pendingEntry && (
+        <div className="card pad row between wrap" style={{ gap: 10 }}>
+          <div className="small"><b>{pendingEntry.name}</b> <span className="muted">· {pendingEntry.seller_name}</span></div>
+          <button className="btn sm primary" disabled={!!busy} onClick={() => ctx.act("Adding", `/api/projects/${pid}/cart`, { entry_id: pendingEntry.item_id }, "Added to your picks").catch(() => {})}>
+            <Plus size={14} /> Add to picks</button>
         </div>
+      )}
+
+      {cart.map((c) => <PickCard key={c.id} c={c} ctx={ctx} />)}
+
+      {cart.length > 0 && (
         <div className="card pad section">
-          <h3>Against your brief (v{b.version})</h3>
-          {(entry ? entry.checks : !quote ? [] : b.requirements.filter((r) => r.kind === "must").map((r) => {
-            const dev = quote!.deviations.find((d) => d.requirement_id === r.id && d.decision !== "accepted");
-            const unconf = (quote!.to_confirm || []).includes(r.label);
-            return { requirement_id: r.id, label: r.label, kind: r.kind, result: dev && dev.severity === "blocked" ? "unmet" : unconf ? "unknown" : "met",
-              explanation: dev ? dev.proposed : unconf ? "Not mentioned in the reply - confirm with the seller" : "Confirmed in the reply" };
-          })).map((c) => (
-            <div key={c.requirement_id} className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
-              {c.result === "met" ? <CheckCircle2 size={16} color="var(--green)" /> : c.result === "unmet" ? <XCircle size={16} color="var(--red)" /> : <CircleHelp size={16} color="var(--amber)" />}
-              <div><b>{c.label}</b><div className="tiny muted">{c.explanation}</div></div>
-            </div>
+          <div className="row between"><span className="small muted">Known total ({cart.reduce((a, c) => a + c.qty, 0)} items)</span>
+            <span className="num" style={{ fontSize: 28 }}>{inr(total)}{unknownPrice ? <span className="tiny muted"> + items priced on request</span> : null}</span></div>
+          <div className="tiny muted">Delivery charges are shown at each store's checkout.</div>
+          {needed.map((k) => (
+            <label key={k} className="check" data-pilot="ack-wrap">
+              <input type="checkbox" data-pilot="ack" checked={acks.includes(k)} onChange={() => setAcks(acks.includes(k) ? acks.filter((x) => x !== k) : [...acks, k])} />
+              <span>{ACK_TEXT[k] || k}</span>
+            </label>
           ))}
-          {!chosen && unknownMusts.length > 0 && (
-            <label className="check" data-pilot="ack-wrap">
-              <input type="checkbox" data-pilot="ack" checked={acks.includes("check_on_store")} onChange={() => toggle("check_on_store")} />
-              <span>I'll check these on the store page before buying: <b>{unknownMusts.map((c) => c.label).join(", ")}</b></span>
-            </label>
-          )}
-          {!chosen && toConfirm.length > 0 && (
-            <label className="check">
-              <input type="checkbox" data-pilot="ack" checked={acks.includes("confirm_with_seller")} onChange={() => toggle("confirm_with_seller")} />
-              <span>I'll confirm these with {seller} before ordering: <b>{toConfirm.join(", ")}</b></span>
-            </label>
-          )}
-          {!chosen && unresolved.length > 0 && (
-            <label className="check">
-              <input type="checkbox" data-pilot="ack" checked={acks.includes("unresolved_charges")} onChange={() => toggle("unresolved_charges")} />
-              <span>I understand these charges aren't known yet: <b>{unresolved.map((u) => u.label).join(", ")}</b></span>
-            </label>
-          )}
           {blockers.length > 0 && <div className="label-banner red"><ShieldCheck /><div><b>Not yet:</b><ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{blockers.map((x, i) => <li key={i}>{x}</li>)}</ul></div></div>}
-          {chosen && <Banner tone="teal"><Check size={14} /> Chosen. Next: buy it directly from {state.order?.seller_name}.</Banner>}
         </div>
-      </div>
+      )}
+
+      {!cart.length && orders.length > 0 && (
+        <Banner tone="teal"><Package size={14} /> {orders.length} order{orders.length > 1 ? "s" : ""} prepared - see Orders to finish them, or add more picks.</Banner>
+      )}
+      {!cart.length && !orders.length && !pendingEntry && <div className="empty"><ShoppingBag size={28} /><div>Add options from the Options step - from one store or several, ready-made or made for you.</div></div>}
       <ProgressStrip lines={lines} busy={!!busy} />
     </div>
   );

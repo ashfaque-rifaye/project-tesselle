@@ -13,13 +13,13 @@ export function HandoffModal({ state, onClose }: { state: ProjectState; onClose:
   return (
     <Modal onClose={onClose}>
       <div className="row"><Smartphone size={20} /><h2 style={{ fontSize: 22 }}>Continue on your phone</h2></div>
-      <div className="small muted">Scan to open this exact project at the pending decision: <b>{state.next_decision.title}</b>. No repeated brief, no duplicate orders.</div>
+      <div className="small muted">Scan to open this exact project on your phone. It mirrors this screen live - open a step here and the phone follows, run an agent there and its progress shows here.</div>
       <div className="row" style={{ justifyContent: "center" }}>{qr && <img src={qr} alt="QR code to open this project on a phone" style={{ width: 220, borderRadius: 24, padding: 10, background: "#EEF5F2" }} />}</div>
       <div className="row">
         <input className="input mono" readOnly value={url} />
         <button className="btn" onClick={() => navigator.clipboard.writeText(url)}><Copy size={14} /> Copy</button>
       </div>
-      <Banner>Prototype: anyone with this link can open the project. Approvals still require an explicit, labelled action on the device you use.</Banner>
+      <Banner>Anyone with this link can open the project. Sending from your inbox or phone line still needs the owner key on that device.</Banner>
       <div className="row" style={{ justifyContent: "flex-end" }}>
         <a className="btn" href={`/m/${state.project.id}`} target="_blank" rel="noreferrer">Open phone view here</a>
         <button className="btn primary" onClick={onClose}>Done</button>
@@ -44,7 +44,7 @@ function diff(a: Brief, b: Brief) {
   return out;
 }
 
-export function ChangeLens({ briefs, version, onClose }: { briefs: Brief[]; version: number; onClose: () => void }) {
+export function ChangeLens({ briefs, version, onClose, onRestore }: { briefs: Brief[]; version: number; onClose: () => void; onRestore?: (v: number) => void }) {
   const b = briefs.find((x) => x.version === version)!;
   const prev = briefs.find((x) => x.version === version - 1);
   const changes = prev ? diff(prev, b) : [];
@@ -69,8 +69,11 @@ export function ChangeLens({ briefs, version, onClose }: { briefs: Brief[]; vers
       ) : (
         <div className="col small">{b.requirements.map((r) => <div key={r.id}>· {r.label} <span className="muted">({r.kind})</span></div>)}</div>
       )}
-      <Banner tone="ink">Previous versions stay reviewable and read-only. Quotes stay tied to the version they answered.</Banner>
-      <div className="row" style={{ justifyContent: "flex-end" }}><button className="btn primary" onClick={onClose}>Close</button></div>
+      <Banner tone="ink">Previous versions stay reviewable. Restoring one saves it as a new version - nothing is lost.</Banner>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        {onRestore && b.version !== briefs[briefs.length - 1].version && <button className="btn" onClick={() => onRestore(b.version)}>Restore v{b.version}</button>}
+        <button className="btn primary" onClick={onClose}>Close</button>
+      </div>
     </Modal>
   );
 }

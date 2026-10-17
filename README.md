@@ -5,11 +5,14 @@
 Project Tesselle is a personal shopping agent for the **Retail & Commerce** theme of the Google Cloud AI Builder
 Cup 2026 - built for purchases that have to *fit*: a space, a device, a person, an occasion or a deadline.
 
-Tell it what you want in words, a voice note, a photo, a short video, an AI-imagined picture or a capture from
-smart glasses. Gemini agents turn that into a brief you can edit at any time, search **real stores** and **real
-makers** that deliver to you, check every option against your must-haves, write the messages you send to makers,
-read their replies, and stop any seller change to a must-have until *you* decide. The same brief carries through
-choosing, tracking and a delivery check.
+Just talk to it - a **real-time voice agent (Gemini Live)** fills in the brief, searches, adds picks and moves
+through the steps while it talks back - or use words, a photo, a short video, an AI-imagined picture or a capture
+from smart glasses. Gemini agents turn that into a brief you can edit (and revert) at any time, search **real
+stores** and **real makers** that deliver to your PIN code, check every option against your must-haves, show the
+real products together - even inside a photo of your own room - with IKEA-style shoppable hotspots, **email or
+phone makers for you** (with privacy-scrubbed photos), read their replies, and stop any seller change to a
+must-have until *you* decide. Several picks become several orders: the **checkout agent** fills the store cart and
+pre-enters your PIN code, you authorise payment, and the **order tracker** keeps your order history.
 
 | | |
 |---|---|
@@ -20,29 +23,45 @@ choosing, tracking and a delivery check.
 | **Guided demo** | Open the app → *Launch the guided demo* - it runs itself, live (about 8 minutes) |
 
 > Honesty: listings and makers come from **live web search** and link to their real pages; prices and stock can
-> change, so the app says "check the store page". Tesselle never pays, orders or sends messages for you. The
-> "practice reply" in the demo is written by Gemini and labelled as such - it never pretends to be a real business.
+> change, so the app says "check the store page". Payment always happens on the store - Tesselle never sees or
+> enters payment details. Messages and calls go out only after the customer confirms, and only from a device that
+> holds the owner key (see [`docs/CHANNELS.md`](docs/CHANNELS.md)). The "practice reply" in the demo is written by
+> Gemini and labelled as such - it never pretends to be a real business.
 
 ---
 
 ## The journey
 
-1. **Start** - "How do you want to start?": describe it (type or talk - words appear as you speak), show a photo
-   or video, use the camera, imagine it with Gemini, or capture from Ray-Ban Meta glasses. Delivery city from your
-   location or a saved place.
+1. **Start** - tap the voice orb and say it, or pick a way: describe it (type or talk - words appear as you
+   speak), show a photo or video, use the camera, imagine it with Gemini (also by voice), or capture from Ray-Ban
+   Meta glasses. Delivery city **and PIN code** from your location (OpenStreetMap), a PIN code (India Post) or a
+   saved place.
 2. **Your brief** - the brief agent writes must-haves vs nice-to-haves (e.g. "max depth 18 cm", "no drilling");
    sizes seen in a photo stay "measure to confirm". Everything is editable in the side panel or by voice, at any step.
-3. **Visualise** (optional) - a labelled concept; tap the picture to point at what to change.
+3. **Visualise** (optional) - a labelled concept; tap the picture to point at what to change. A visual edit that
+   changes a size or material updates the brief and says exactly what changed, with one-tap **Revert**.
 4. **Options** - the **shopping agent** finds real listings (IKEA, Flipkart, Amazon.in, Pepperfry, brand stores...)
    and the **maker scout** finds real workshops and made-to-order services near you. The **fit checker** (plain code)
    marks each one *fits / check a detail / doesn't fit*; a short summary says what was found.
-5. **Reach out** - the **outreach agent** writes the message; you send it from Gmail, your mail app or WhatsApp.
-6. **Replies** - paste a reply or drop a screenshot; the **reply reader** extracts the offer and the fit checker
-   compares it with your brief. A change to a must-have (e.g. a 20 cm jig for an 18 cm shelf) is **blocked** until
-   you decide; keeping it drafts your follow-up.
-7. **Choose** - one option, one brief version; anything unconfirmed needs an explicit tick.
-8. **Track** - buy directly from the seller; mark ordered / arrived from any device.
+   **Shop the look** composes the real products (from their real photos) into one picture - in your own room if you
+   shared a photo - and Gemini locates each one, so every hotspot links to its listing. **In my space** edits your own
+   photo to show one product in place (before / after).
+5. **Reach out** (only when asking makers) - the **outreach agent** writes each message with privacy-scrubbed photos;
+   pick a channel per maker - **email** from your connected inbox, an **AI phone call** by the call agent, or
+   **WhatsApp** - and send from Tesselle.
+6. **Replies** - email replies and call answers arrive by themselves (or paste / screenshot one); the **reply
+   reader** extracts the offer and the fit checker compares it with your brief. A change to a must-have (e.g. a
+   20 cm jig for an 18 cm shelf) is **blocked** until you decide; keeping it drafts your follow-up.
+7. **Your picks** - add several options from different stores and makers; quantities; each pick is cleared by the
+   fit checker; anything unconfirmed needs an explicit tick.
+8. **Orders** - the **checkout agent** prepares each purchase: an Amazon cart with every Amazon pick, a pre-filled
+   Shopify checkout (PIN code entered), or the product page with steps. You authorise payment on the store, paste
+   the confirmation, and Gemini reads the order number and delivery date into your **order history** (which can also
+   import store order emails from your inbox). "Changed my mind" cancels an order before delivery.
 9. **Delivery check** - Gemini vision compares a photo with the checks you agreed, and says what a photo can't prove.
+
+The steps adapt to what you do (buying from a store skips Reach out and Replies), each one says what it holds, and
+**Back** is always on the bottom bar.
 
 `tools/e2e_storyboard.py <url>` runs the journey against a deployment and asserts the guarantees.
 
@@ -55,9 +74,13 @@ choosing, tracking and a delivery check.
 | **Fit checker** | `app/guard.py` - deterministic requirement checks, verdicts, quote deviations and choose gates. LLMs only *explain* verdicts. |
 | **Advisor** | Short, plain-language summary (headline, 2-4 bullets, best next step). |
 | **Design agent** | Writes the art direction; **Gemini image generation** draws concepts, with tap-to-point refinements. |
-| **Outreach agent** | Drafts quote requests and follow-ups the customer sends themselves (only the brief is shared). |
+| **Outreach agent** | Drafts quote requests and follow-ups; sends email from the connected inbox with attachments. Photos are re-encoded (no camera data / GPS) and Gemini finds faces, documents and addresses, which are blurred. |
+| **Call agent** | Phones a maker (Twilio Programmable Voice): discloses it is an AI assistant, asks the must-haves, price and lead time turn by turn with Gemini, and the transcript becomes a checked quote. |
+| **Visual agent** | **Shop the look**: Gemini image generation composes the real product photos (and the customer's room photo) into one scene; Gemini then returns each product's bounding box, so the picture is shoppable. **In my space**: edits the customer's own photo to place a product. |
+| **Checkout agent + order tracker** | Builds the fastest legitimate checkout per store (Amazon multi-item cart link, Shopify cart permalink with the PIN code pre-filled, or product page + steps); Gemini reads pasted confirmations and inbox order emails into the order history. |
 | **Reply reader** | Turns a pasted reply, screenshot or PDF into a structured offer; decision cards explain any change. |
-| **Assistant (voice)** | ADK agent with tools that act on the project (edit brief, budget, city, confirm, draw, find options, draft messages) and **navigate the app**; live speech-to-text, spoken replies with **Gemini TTS**; **Agent Platform Sessions + Memory Bank** keep one conversation across desktop, phone and glasses. |
+| **Voice agent (live)** | **Gemini Live (native audio, `gemini-live-2.5-flash-native-audio`)** over a WebSocket on Cloud Run: speech in, speech out, barge-in, live captions. It has the same 20 tools as the chat agent - start/edit the brief, budget, city + PIN, answer questions, notes, confirm, draw, find options, shop the look, add picks, place orders, draft/send messages, check replies, open any step - slow tools run in the background and it speaks the result when ready. |
+| **Assistant (chat)** | The same tools as an ADK agent; the mic types your words (no voice notes); **Agent Platform Sessions + Memory Bank** keep one conversation across desktop, phone and glasses. |
 | **Delivery inspector** | Gemini vision compares a delivery photo with the agreed checklist. |
 | **Self-running guided demo** | The app drives itself through the real journey (live agents, live web search) with captions and narration. |
 | **Resilience** | Primary model with automatic fallback to **Gemini 2.5 Flash** in `asia-southeast1`; hedged grounded search; deterministic summaries if an explainer is slow. |
@@ -72,15 +95,20 @@ spring motion.
 - **Always clear what's next** - a sticky Next bar on every step; the step's main action lives there.
 - **See the agents work** - a Dynamic-Island status pill says which Gemini agent is doing what, right now.
 - **Your brief, editable everywhere** - budget, city, deadline, must-haves and nice-to-haves, at any step.
-- **Calm by default** - a hideable step rail, a round Activity icon, an assistant button in the corner.
-- **One project, every device** - phone app (Home, Capture, Assistant, Activity), glasses HUD and the Ray-Ban Meta
-  share target all work on the same project in real time.
+- **Calm by default** - a hideable, adaptive step rail, a round Activity icon, a living voice orb in the corner.
+- **Voice first** - tap the orb and talk; a keyboard button beside it opens the chat. Every text box has a mic that
+  types what you say.
+- **One project, every device** - open it on the phone and it mirrors the computer: the same step opens on both,
+  and an agent started on one device shows its live progress on the other. Glasses HUD and the Ray-Ban Meta share
+  target work on the same project.
 
 ## Google Cloud stack
 
 - **Vertex AI / Agent Platform** (`aiplatform.googleapis.com`) - Gemini 3.8 Flash, Gemini 2.5 Flash (regional fast path and
-  fallback), **Grounding with Google Search**, Gemini 3.1 Flash Image, Gemini Embedding 2, Gemini 2.5 Flash TTS; Agent
-  Runtime with **Sessions** and **Memory Bank** (`asia-southeast1`).
+  fallback), **Gemini Live 2.5 Flash native audio** (real-time voice agent), **Grounding with Google Search**, Gemini 3.1
+  Flash Image (concepts, shop the look, in-my-space edits), Gemini 2D object detection (hotspots, privacy blur), Gemini
+  Embedding 2, Gemini 2.5 Flash TTS; Agent Runtime with **Sessions** and **Memory Bank** (`asia-southeast1`).
+- **Secret Manager** - the owner's email app password, Twilio credentials and owner key, read at runtime (never in the repo).
 - **Google ADK 2.12** - `LlmAgent`s with output schemas and tools, graph `Workflow` with parallel fan-out and `JoinNode`,
   `Runner`, Vertex session & memory services, OpenTelemetry.
 - **Cloud Run** - FastAPI + ADK backend and the web app, streaming NDJSON progress.
@@ -134,7 +162,10 @@ firebase deploy --only hosting
 - Every listing links to its real page; prices and stock are labelled "check the store page".
 - Unknown charges are never folded into a total; unconfirmed must-haves need an explicit tick before choosing.
 - Sellers receive only the brief - never your name, number, address or photos.
-- Tesselle never pays, orders or sends messages for you; the assistant can't accept seller changes or choose for you.
+- Payment always happens on the store; Tesselle never sees or enters payment details. The agents send messages,
+  call or prepare orders only after an explicit confirmation, and never accept a seller's change to a must-have.
+- Outgoing photos are privacy-scrubbed (metadata removed; faces, documents and addresses blurred) and only the brief
+  is shared - never the customer's name, number or address. The call agent says it is an AI assistant.
 - Concept and practice content is always labelled; a cost guard caps daily model and image calls.
 
 Built for the Google Cloud AI Builder Cup 2026 (Hack2Skill).

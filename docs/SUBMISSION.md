@@ -22,18 +22,22 @@ seller quietly change what you need.
 Shoppers know exactly what they need, but similar-looking products often miss the one thing that mattered, and
 seller counteroffers quietly rewrite requirements. Project Tesselle captures what you want multimodally (voice with
 live speech-to-text, photos, video, Gemini-imagined concepts, Ray-Ban Meta captures) and Gemini agents turn it into a
-brief you can edit at any step. An ADK graph workflow runs a shopping agent and a maker scout in parallel using
-Gemini with Grounding with Google Search, returning real listings and real makers that deliver to your city, each
-linked to its page and checked against your must-haves by deterministic code. An outreach agent writes the messages
-you send; a reply reader checks the answers and blocks any change to a must-have until you decide. A voice assistant
-with Agent Platform Sessions and Memory Bank guides you and drives the app across desktop, phone and glasses, and the
-guided demo runs itself, live.
+brief you can edit and revert at any step - or you just talk to a real-time Gemini Live voice agent that fills it in
+and drives the app. An ADK graph workflow runs a shopping agent and a maker scout in parallel using Gemini with
+Grounding with Google Search, returning real listings and makers that deliver to your PIN code, each checked against
+your must-haves by deterministic code. Gemini composes the real products into your own room photo with shoppable
+hotspots. The outreach agent emails or phones makers with privacy-scrubbed photos; a reply reader checks the answers
+and blocks any change to a must-have until you decide. Several picks become several orders the checkout agent
+prepares, and an order tracker keeps your history.
 
 ## Google Cloud stack used
 
 - **Gemini on Vertex AI / Agent Platform** - Gemini 3.8 Flash (reasoning; text, audio, image, video), Gemini 2.5 Flash
-  (regional fast path and automatic fallback), **Grounding with Google Search** (real listings and makers), Gemini 3.1
-  Flash Image (concepts, imagine-it, brand scenery), Gemini Embedding 2 (relevance ranking), Gemini 2.5 Flash TTS.
+  (regional fast path and automatic fallback), **Gemini Live 2.5 Flash native audio** (real-time voice agent with tools),
+  **Grounding with Google Search** (real listings and makers), Gemini 3.1 Flash Image (concepts, imagine-it, shop the
+  look, in-my-space edits), Gemini 2D detection (shoppable hotspots, privacy blur), Gemini Embedding 2 (relevance
+  ranking), Gemini 2.5 Flash TTS.
+- **Secret Manager** - outreach channel credentials and the owner key, read at runtime.
 - **Google Agent Development Kit (ADK 2.12)** - ten `LlmAgent`s with typed outputs and function tools; a graph `Workflow`
   with parallel fan-out and a `JoinNode`; `Runner`; Vertex session and memory services; OpenTelemetry.
 - **Agent Platform Agent Runtime** - managed **Sessions** (one conversation per project across devices) and **Memory
@@ -50,14 +54,16 @@ guided demo runs itself, live.
 
 | Criterion | Where to look |
 |---|---|
-| Technical merit & Gen AI (40%) | ADK agents + graph workflow, grounded web search tied to cited pages, deterministic fit checker, multimodal intake incl. video, voice assistant that acts and navigates, Memory Bank, TTS, embeddings ranking, model fallback, Cloud Trace |
+| Technical merit & Gen AI (40%) | ADK agents + graph workflow, grounded web search tied to cited pages, deterministic fit checker, Gemini Live voice agent with 20 tools, shoppable image generation + detection, privacy-scrubbing vision, call agent, checkout agent, Memory Bank, embeddings ranking, model fallback, Cloud Trace |
 | Problem alignment & impact (25%) | Retail & Commerce: real options that fit, real makers when nothing fits, honest "nothing fits" outcomes |
 | Innovation (25%) | Intent preservation as a versioned object; seller changes become customer decisions; glasses-to-agent capture; a demo that runs itself |
 | UX (10%) | Liquid-glass design, one clear next step, editable brief everywhere, live agent status, phone app, accessibility labels |
 
 ## Honesty notes for judges
 
-Listings and makers come from live web search and link to their real pages; prices and stock can change. Tesselle
-never pays, orders or sends messages on the customer's behalf. The practice reply used in the guided demo is written by
+Listings and makers come from live web search and link to their real pages; prices and stock can change. Payment
+always happens on the store (the checkout agent fills carts and pre-enters the PIN code; it never handles payment).
+Emails and calls go out only after an explicit confirmation and only from a device holding the owner key, so the public
+demo cannot send from the owner's inbox; WhatsApp opens ready to send. The practice reply used in the guided demo is written by
 Gemini and clearly labelled. Smart-glasses capture works through the phone share sheet (PWA share target) and a
 heads-up capture view; direct streaming from Ray-Ban Meta needs Meta's native SDK (roadmap).

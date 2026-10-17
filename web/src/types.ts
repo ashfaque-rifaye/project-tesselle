@@ -29,7 +29,7 @@ export interface Brief {
   category?: string;
   requirements: Requirement[];
   budget: { target_inr?: number | null; limit_inr?: number | null; share_with_sellers: boolean };
-  delivery: { region?: string | null; desired_by?: string | null; essential: boolean };
+  delivery: { region?: string | null; pincode?: string | null; desired_by?: string | null; essential: boolean };
   unknowns: Unknown[];
   acceptance_checks: string[];
   confirmed: boolean;
@@ -48,6 +48,7 @@ export interface Concept {
   pin?: [number, number] | null;
   brief_version: number;
   effects: { requirement_id?: string | null; suggestion: string }[];
+  applied?: { from_version: number; to_version: number; changes: { id: string; before?: string | null; after: string; kind: string }[]; reverted?: boolean } | null;
   created_at: string;
 }
 
@@ -125,6 +126,8 @@ export interface Routes {
   duration_ms: number;
 }
 
+export type Channel = "email" | "call" | "whatsapp";
+
 export interface Recipient {
   entry_id: string;
   name: string;
@@ -133,8 +136,19 @@ export interface Recipient {
   subject: string;
   body: string;
   channels: { mailto?: string | null; whatsapp?: string | null; gmail?: string | null; website?: string | null };
-  status: "draft" | "sent";
+  channel?: Channel;
+  attachments?: string[];
+  status: "draft" | "sent" | "calling" | "called" | "replied" | "failed";
+  error?: string | null;
+  call_id?: string;
   sent_at?: string;
+}
+
+export interface Attachment {
+  id: string;
+  path: string;
+  label: string;
+  privacy: { metadata_removed: boolean; blurred: string[] };
 }
 
 export interface SellerRequest {
@@ -147,6 +161,8 @@ export interface SellerRequest {
   responses: { seller_name: string; quote_id?: string; at: string }[];
   created_at: string;
   sent_at?: string;
+  ref?: string;
+  attachments?: Attachment[];
 }
 
 export interface PriceLine {
@@ -214,10 +230,92 @@ export interface Milestone {
   done_at?: string;
 }
 
+export interface Checkout {
+  method: "amazon_cart" | "store_checkout" | "product_page" | "maker_confirm";
+  url?: string | null;
+  label: string;
+  steps: string[];
+  grouped?: number;
+}
+
+export interface Confirmation {
+  order_number?: string | null;
+  store?: string | null;
+  items?: string[];
+  total_inr?: number | null;
+  order_date?: string | null;
+  expected_delivery?: string | null;
+  status?: string;
+  tracking_url?: string | null;
+  manual?: boolean;
+  captured_at?: string;
+}
+
+export interface CartItem {
+  id: string;
+  kind: "store" | "maker";
+  title: string;
+  seller_name: string;
+  seller_id?: string;
+  url?: string | null;
+  image_url?: string | null;
+  image_path?: string | null;
+  price_inr?: number | null;
+  qty: number;
+  entry_id?: string | null;
+  quote_id?: string | null;
+  needs: Record<string, string>;
+  added_at: string;
+}
+
+export interface Note { id: string; text: string; share: boolean; created_at: string; updated_at: string }
+
+export interface Call {
+  id: string;
+  request_id: string;
+  entry_id: string;
+  name: string;
+  status: string;
+  transcript: { who: "agent" | "them"; text: string }[];
+  created_at: string;
+}
+
+export interface LookItem {
+  entry_id: string;
+  name: string;
+  seller_name: string;
+  seller_id?: string;
+  price_inr?: number | null;
+  url?: string | null;
+  image_url?: string | null;
+  x?: number | null;
+  y?: number | null;
+  verdict?: Verdict;
+}
+
+export interface Look {
+  id: string;
+  kind: "look" | "space";
+  image_path: string;
+  before_path?: string;
+  items: LookItem[];
+  in_space: boolean;
+  note: string;
+  created_at: string;
+}
+
 export interface Order {
   id: string;
   order_ref: string;
   kind: "store" | "maker";
+  qty?: number;
+  checkout?: Checkout | null;
+  confirmation?: Confirmation | null;
+  project_id?: string;
+  project_title?: string;
+  source?: string;
+  seller_id?: string;
+  image_path?: string | null;
   entry_id?: string | null;
   quote_id?: string | null;
   seller_name: string;
@@ -273,6 +371,7 @@ export interface NextDecision {
   deviation_id?: string;
   severity?: string;
   count?: number;
+  order_id?: string;
 }
 
 export type Stage = "inspire" | "clarify" | "visualise" | "routes" | "request" | "compare" | "approve" | "fulfil" | "accept";
@@ -286,8 +385,11 @@ export interface Project {
   brief_version: number;
   approved_brief_version?: number | null;
   selected_concept_id?: string | null;
-  inspiration: { text?: string; image_path?: string | null; transcript?: string | null; photo_observations?: string[]; had_audio?: boolean };
+  inspiration: { text?: string; image_path?: string | null; transcript?: string | null; photo_observations?: string[]; had_audio?: boolean; generated_image?: boolean };
   rev: number;
+  archived?: boolean;
+  view?: { stage: Stage; device: string; at: string } | null;
+  live?: { label: string; agent?: string | null; message?: string | null; at: string } | null;
   created_at: string;
   updated_at: string;
 }
@@ -300,6 +402,11 @@ export interface ProjectState {
   requests: SellerRequest[];
   quotes: Quote[];
   order: Order | null;
+  orders: Order[];
+  cart: CartItem[];
+  notes: Note[];
+  calls: Call[];
+  looks: Look[];
   events: ActivityEvent[];
   next_decision: NextDecision;
 }
@@ -310,13 +417,13 @@ export interface Line {
 }
 
 export interface StreamEvent {
-  type: "progress" | "tool" | "text" | "result" | "error" | "done" | "ui" | "heartbeat";
+  type: "progress" | "tool" | "text" | "result" | "error" | "done" | "ui" | "heartbeat" | "heard";
   message?: string;
   agent?: string;
   text?: string;
   name?: string;
   node?: string;
-  navigate?: Stage;
+  navigate?: Stage | "back";
   reply?: string;
   audio?: string | null;
   state?: ProjectState;

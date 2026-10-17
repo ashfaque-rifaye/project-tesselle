@@ -41,7 +41,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
   routes: "Options",
   request: "Reach out",
   compare: "Replies",
-  approve: "Choose",
-  fulfil: "Track",
+  approve: "Your picks",
+  fulfil: "Orders",
   accept: "Delivery check",
 };

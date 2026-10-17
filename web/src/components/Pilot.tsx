@@ -132,6 +132,7 @@ export default function Pilot({ go, onEnd, openActivity }: { go: (s: Stage) => v
     await type('[data-pilot="idea"]', DEMO_TEXT, 110);
     await click('[data-pilot="demo-photo"]');
     await type('[data-pilot="city"]', "Chennai, Tamil Nadu", 40);
+    if (exists('[data-pilot="pin"]')) await type('[data-pilot="pin"]', "600042", 12);
     await click('[data-pilot="primary"]');
     await show(2, "The brief agent reads it all", "Gemini reads the words and the photo together, and writes a brief: what must stay the same, and what is just nice to have.");
     await waitPath(/clarify/);
@@ -174,9 +175,12 @@ export default function Pilot({ go, onEnd, openActivity }: { go: (s: Stage) => v
     await waitPath(/request/);
 
     // 5. Reach out
-    await show(5, "Messages, written for you", "The outreach agent wrote it - only your brief, never your name or address. You send it yourself, from your email or WhatsApp.", true);
-    await click('[data-pilot="primary"]');
-    await waitIdle();
+    await show(5, "Messages, written for you", "The outreach agent wrote it, with privacy-checked photos attached - only your brief, never your name or address. Pick email, an AI phone call or WhatsApp for each maker, and Tesselle sends it.", true);
+    const seg = document.querySelector(".seg") as HTMLElement | null;
+    if (seg) { await moveTo(seg); await sleep(1800); }
+    await show(5, "Sending stays with you", "In this public demo nothing is sent to a real business - so let's skip ahead to what happens when a maker replies.");
+    await sleep(1500);
+    go("compare");
     await waitPath(/compare/);
 
     // 6. Replies
@@ -197,15 +201,18 @@ export default function Pilot({ go, onEnd, openActivity }: { go: (s: Stage) => v
     await click('[data-pilot="primary"]');
     await waitPath(/approve/);
 
-    // 7-8. Choose and track
-    await show(8, "Choose with clear eyes", "One offer, one brief version, every must-have kept. Tesselle never pays or orders for you.");
+    // 7-8. Picks, order and tracking
+    await waitIdle();
+    await show(8, "Your picks, checked", "The offer goes into your picks - you can add more, from stores and makers. Each one is cleared by the fit checker before ordering.");
     for (const el of Array.from(document.querySelectorAll('[data-pilot="ack"]')) as HTMLElement[]) { await moveTo(el); el.click(); await sleep(300); }
     await click('[data-pilot="primary"]');
     await waitIdle();
     await waitPath(/fulfil/);
-    await show(9, "Tracked to your door", "You confirm the order with the maker, and mark it when it arrives - on any device.");
-    await click('[data-pilot="primary"]');
+    await show(9, "The checkout agent takes over", "For a store, it fills the cart and your PIN code so you only authorise payment. For a maker, you confirm the order - then paste the confirmation and Tesselle tracks it.");
+    await click('[data-pilot="ordered-it"]');
+    await click('[data-pilot="save-ordered"]');
     await waitIdle();
+    await sleep(1200);
     await click('[data-pilot="primary"]');
     await waitIdle();
     await waitPath(/accept/);

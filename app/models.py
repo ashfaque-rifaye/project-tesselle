@@ -64,6 +64,7 @@ class Unknown(BaseModel):
     id: str
     question: str = Field(description="The smallest useful next question.")
     why: str = Field(description="Why the answer matters for fulfilment.")
+    topic: Optional[str] = Field(default=None, description="Short key for what it asks about, e.g. 'shelf-depth', 'budget', 'colour'.")
     answer: Optional[str] = None
     status: Literal["open", "answered", "dont_know"] = "open"
 
@@ -76,6 +77,7 @@ class Budget(BaseModel):
 
 class Delivery(BaseModel):
     region: Optional[str] = None
+    pincode: Optional[str] = Field(default=None, description="6-digit Indian PIN code for delivery, if known.")
     desired_by: Optional[str] = None
     essential: bool = False
 

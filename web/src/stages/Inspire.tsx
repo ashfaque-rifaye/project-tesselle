@@ -4,6 +4,7 @@ import { ArrowLeft, Camera, Film, Glasses, ImagePlus, Loader2, Mic, PenLine, Pla
 import { get, media, post } from "../api";
 import CameraCapture, { type Captured } from "../components/CameraCapture";
 import LocationField, { rememberPlace } from "../components/LocationField";
+import MicButton from "../components/MicButton";
 import { ProgressStrip, useToast } from "../components/ui";
 import { useDictation } from "../components/voice";
 import { usePrimary, type StageCtx } from "./ctx";
@@ -35,6 +36,7 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
   const [mode, setMode] = useState<Mode | null>((params.get("mode") as Mode) || null);
   const [text, setText] = useState(insp.text || "");
   const [region, setRegion] = useState("");
+  const [pincode, setPincode] = useState("");
   const [item, setItem] = useState<Media | null>(null);
   const [camera, setCamera] = useState(false);
   const [imagining, setImagining] = useState(false);
@@ -76,13 +78,14 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
     const fd = new FormData();
     fd.append("text", text);
     fd.append("region", region);
+    fd.append("pincode", pincode);
     fd.append("consent_photo", String(!!item));
     fd.append("use_demo_photo", String(!!item?.demo));
     if (item?.serverPath) fd.append("image_path", item.serverPath);
     else if (item?.blob) fd.append(item.kind === "video" ? "video" : "image", item.blob, item.kind === "video" ? "clip.webm" : "photo.jpg");
     if (dict.audio && !text.trim()) fd.append("audio", dict.audio, "voice.webm");
     if (mode === "space" && item?.label.startsWith("Captured")) fd.append("source", "live camera");
-    if (region) rememberPlace(region);
+    if (region) rememberPlace(region, "Recent", pincode);
     try {
       await ctx.streamAct("Writing your brief", `/api/projects/${pid}/inspiration`, fd, "Your brief is ready");
       ctx.go("clarify");
@@ -154,11 +157,18 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
         <div className="composer-card glass">
           {mode === "imagine" && !item && (
             <div className="col" style={{ gap: 10 }}>
-              <textarea className="textarea" style={{ minHeight: 96 }} placeholder="e.g. a low bamboo desk organiser with a phone slot and a tray for an A5 notebook"
-                value={imaginePrompt} onChange={(e) => setImaginePrompt(e.target.value)} />
-              <button className="btn primary" style={{ alignSelf: "flex-start" }} onClick={imagine} disabled={imagining || !!busy}>
-                {imagining ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />} {imagining ? "Drawing (about 15 s)..." : "Imagine it"}
-              </button>
+              <div className="idea-box">
+                <textarea className="textarea idea" style={{ minHeight: 96 }} placeholder="e.g. a low bamboo desk organiser with a phone slot and a tray for an A5 notebook"
+                  value={imaginePrompt} onChange={(e) => setImaginePrompt(e.target.value)} data-pilot="imagine-input" />
+                <div className="idea-tools">
+                  <MicButton value={imaginePrompt} onChange={setImaginePrompt} disabled={imagining} label="Describe it out loud" />
+                  <span className="tiny muted">Talk or type, then let Gemini draw it</span>
+                  <div className="grow" />
+                  <button className="btn primary sm" onClick={imagine} disabled={imagining || !!busy}>
+                    {imagining ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />} {imagining ? "Drawing (about 15 s)..." : "Imagine it"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -205,7 +215,7 @@ export default function Inspire({ ctx }: { ctx: StageCtx }) {
             </div>
           )}
 
-          <LocationField value={region} onChange={setRegion} />
+          <LocationField value={region} onChange={setRegion} pincode={pincode} onPincode={setPincode} />
           {item && <div className="tiny muted">Your {item.kind} is used for this project only and never shown to sellers unless you choose to.</div>}
         </div>
       )}

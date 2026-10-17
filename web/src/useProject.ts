@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, get, post, stream } from "./api";
-import type { Line, ProjectState, StreamEvent } from "./types";
+import type { Line, Project, ProjectState, StreamEvent } from "./types";
+
+export interface Remote { view?: Project["view"]; live?: Project["live"] }
 import { useToast } from "./components/ui";
 
 /** Loads a project, keeps it fresh across devices (cheap rev polling), and runs actions with
@@ -11,6 +13,7 @@ export function useProject(pid: string | undefined) {
   const [busy, setBusy] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [remoteChange, setRemoteChange] = useState(false);
+  const [remote, setRemote] = useState<Remote>({});
   const rev = useRef(0);
   const localAction = useRef(false);
   const toast = useToast();
@@ -42,7 +45,8 @@ export function useProject(pid: string | undefined) {
     const t = setInterval(async () => {
       if (document.hidden || localAction.current) return;
       try {
-        const r = await get<{ rev: number }>(`/api/projects/${pid}/rev`);
+        const r = await get<{ rev: number; view?: Project["view"]; live?: Project["live"] }>(`/api/projects/${pid}/rev`);
+        setRemote((old) => (JSON.stringify(old) === JSON.stringify({ view: r.view, live: r.live }) ? old : { view: r.view, live: r.live }));
         if (r.rev !== rev.current && rev.current !== 0) {
           await load();
           setRemoteChange(true);
@@ -51,7 +55,7 @@ export function useProject(pid: string | undefined) {
       } catch {
         /* offline: keep the last known state */
       }
-    }, 2500);
+    }, 2000);
     return () => clearInterval(t);
   }, [pid, load]);
 
@@ -111,5 +115,5 @@ export function useProject(pid: string | undefined) {
     [run],
   );
 
-  return { state, error, busy, lines, setLines, load, act, streamAct, remoteChange, setState: apply };
+  return { state, error, busy, lines, setLines, load, act, streamAct, remoteChange, remote, setState: apply };
 }

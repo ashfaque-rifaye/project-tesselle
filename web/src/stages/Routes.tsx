@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { ArrowUpRight, Check, ChevronDown, Globe, Hammer, Mail, Phone, RefreshCw, Search, Send, Sparkles } from "lucide-react";
-import { ago, inr } from "../api";
+import { useRef, useState } from "react";
+import { ArrowUpRight, Check, ChevronDown, Globe, Hammer, Home, Mail, Phone, Plus, RefreshCw, Search, Send, ShoppingBag, Sparkles } from "lucide-react";
+import { ago, img, inr } from "../api";
+import LookViewer from "../components/LookViewer";
 import { CheckChip, ProgressStrip, StockChip, VERDICT, favicon } from "../components/ui";
 import { FitRing } from "../components/Viz";
 import type { RouteEntry } from "../types";
@@ -10,14 +11,19 @@ function storeLogo(e: RouteEntry) {
   return <img className="store-fav" src={favicon(e.seller_id)} alt="" />;
 }
 
-function OfferCard({ e, onChoose }: { e: RouteEntry; onChoose: () => void }) {
+function ProductImage({ e }: { e: RouteEntry }) {
+  const [step, setStep] = useState(0); // 0: proxied store photo, 1: direct link, 2: store logo
+  if (!e.image_url || step >= 2) return <div className="noimg"><img src={favicon(e.seller_id, 128)} alt="" /><span className="tiny muted">No photo on the listing</span></div>;
+  return <img src={step === 0 ? img(e.image_url) : e.image_url} alt={e.name} loading="lazy" referrerPolicy="no-referrer" onError={() => setStep(step + 1)} />;
+}
+
+function OfferCard({ e, onChoose, onTry, inCart }: { e: RouteEntry; onChoose: () => void; onTry?: () => void; inCart?: boolean }) {
   const met = e.checks.filter((c) => c.result === "met").length;
   const tone = { meets: "volt", possible_with_change: "amber", not_suitable: "red", needs_quote: "sky" }[e.verdict];
   return (
     <div className={`card offer ${e.verdict === "not_suitable" ? "dim" : ""}`}>
       <div className="media">
-        {e.image_url ? <img src={e.image_url} alt={e.name} loading="lazy" referrerPolicy="no-referrer" onError={(ev) => ((ev.target as HTMLImageElement).style.display = "none")} />
-          : <div className="noimg"><img src={favicon(e.seller_id, 128)} alt="" /></div>}
+        <ProductImage e={e} />
         <span className="fit"><FitRing met={met} total={e.checks.length} tone={tone} /></span>
       </div>
       <div className="body">
@@ -28,9 +34,12 @@ function OfferCard({ e, onChoose }: { e: RouteEntry; onChoose: () => void }) {
         </div>
         <div className={`decisive ${VERDICT[e.verdict].tone}`}>{e.decisive}</div>
         <div className="checks">{e.checks.slice(0, 4).map((c) => <CheckChip key={c.requirement_id} c={c} />)}</div>
-        <div className="row" style={{ gap: 6, marginTop: 2 }}>
+        <div className="row wrap" style={{ gap: 6, marginTop: 2 }}>
           <a className="btn sm light" href={e.url} target="_blank" rel="noreferrer">View on {e.seller_name.split(" ")[0]} <ArrowUpRight size={13} /></a>
-          {e.verdict !== "not_suitable" && <button className="btn sm" onClick={onChoose}>Choose</button>}
+          {e.verdict !== "not_suitable" && (inCart
+            ? <span className="chip volt"><Check /> In your picks</span>
+            : <button className="btn sm" onClick={onChoose} data-pilot="add-pick"><Plus size={13} /> Add to picks</button>)}
+          {onTry && e.image_url && e.verdict !== "not_suitable" && <button className="btn sm ghost" onClick={onTry} title="See it in your own photo"><Home size={13} /> In my space</button>}
         </div>
       </div>
     </div>
@@ -44,7 +53,34 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [showNo, setShowNo] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [tryFor, setTryFor] = useState<string | null>(null);
+  const spaceInput = useRef<HTMLInputElement>(null);
   const stale = routes && b && routes.brief_version !== b.version;
+  const cart = state.cart || [];
+  const inCart = (id: string) => cart.some((c) => c.entry_id === id);
+  const looks = [...(state.looks || [])].reverse();
+  const hasSpace = !!state.project.inspiration?.image_path && !state.project.inspiration?.generated_image;
+
+  const addPick = (id: string) => ctx.act("Adding to your picks", `/api/projects/${pid}/cart`, { entry_id: id }, "Added to your picks").catch(() => {});
+  async function shopLook() {
+    try {
+      await ctx.streamAct("Making the picture", `/api/projects/${pid}/looks`, { in_space: true }, "Shoppable picture ready");
+    } catch {
+      /* toast */
+    }
+  }
+  async function tryInSpace(entryId: string, file?: File) {
+    const fd = new FormData();
+    fd.append("entry_id", entryId);
+    if (file) fd.append("photo", file);
+    try {
+      await ctx.streamAct("Placing it in your space", `/api/projects/${pid}/looks/space`, fd, "Here it is in your space");
+      document.querySelector(".look")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+      /* toast */
+    }
+  }
+  const onTry = (id: string) => (hasSpace ? tryInSpace(id) : (setTryFor(id), spaceInput.current?.click()));
 
   async function explore() {
     try {
@@ -71,12 +107,14 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
 
   usePrimary(ctx, !routes || stale
     ? { label: stale ? "Search again" : "Find options", onClick: explore, disabled: !b?.confirmed, icon: <Search size={16} />,
-        hint: b?.confirmed ? `Search real stores and makers${b.delivery.region ? ` that deliver to ${b.delivery.region.split(",")[0]}` : ""}` : "Confirm your brief first" }
+        hint: b?.confirmed ? `Search real stores and makers${b.delivery.region ? ` that deliver to ${b.delivery.region.split(",")[0]}${b.delivery.pincode ? ` ${b.delivery.pincode}` : ""}` : ""}` : "Confirm your brief first" }
     : picked.length
-      ? { label: `Message ${picked.length} maker${picked.length > 1 ? "s" : ""}`, onClick: message, icon: <Send size={16} />, hint: "Tesselle writes it - you send it" }
-      : best
-        ? { label: "Choose the best match", onClick: () => ctx.go("approve", `entry=${best.item_id}`), icon: <Check size={16} />, hint: `${best.name} fits every must-have` }
-        : { label: "Pick makers to message", onClick: () => document.querySelector('[data-pilot="makers"]')?.scrollIntoView({ behavior: "smooth" }), icon: <Hammer size={16} />, hint: "Nothing ready-made fits yet - a maker can make it exactly" });
+      ? { label: `Message ${picked.length} maker${picked.length > 1 ? "s" : ""}`, onClick: message, icon: <Send size={16} />, hint: "Tesselle writes it and sends it for you" }
+      : cart.length
+        ? { label: `Review ${cart.length} pick${cart.length > 1 ? "s" : ""}`, onClick: () => ctx.go("approve"), icon: <ShoppingBag size={16} />, hint: "Add more, or go on to order" }
+        : best
+          ? { label: "Add the best match", onClick: () => addPick(best.item_id).then(() => ctx.go("approve")), icon: <Plus size={16} />, hint: `${best.name} fits every must-have` }
+          : { label: "Pick makers to message", onClick: () => document.querySelector('[data-pilot="makers"]')?.scrollIntoView({ behavior: "smooth" }), icon: <Hammer size={16} />, hint: "Nothing ready-made fits yet - a maker can make it exactly" });
 
   return (
     <div className="section">
@@ -124,10 +162,21 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
             </div>
           </div>
 
+          {good.some((e) => e.image_url) && (
+            <div className="card pad section look-card">
+              <div className="row between wrap">
+                <div><h3>See them together</h3><div className="small muted">Gemini puts the real products {hasSpace ? "into your photo" : "in a room"} - tap a dot to shop it, like a catalogue page.</div></div>
+                <button className="btn sm primary" onClick={shopLook} disabled={!!busy} data-pilot="shop-look"><ShoppingBag size={14} /> {looks.length ? "Make another" : "Shop the look"}</button>
+              </div>
+              {looks[0] && <LookViewer look={looks[0]} busy={!!busy} onAdd={(it) => addPick(it.entry_id)} />}
+            </div>
+          )}
+
           <div className="group-head"><h3>Available now</h3><span className="chip muted">{good.length}</span></div>
           {good.length ? (
-            <div className="offer-grid">{good.map((e) => <OfferCard key={e.item_id} e={e} onChoose={() => ctx.go("approve", `entry=${e.item_id}`)} />)}</div>
+            <div className="offer-grid">{good.map((e) => <OfferCard key={e.item_id} e={e} inCart={inCart(e.item_id)} onChoose={() => addPick(e.item_id)} onTry={() => onTry(e.item_id)} />)}</div>
           ) : <div className="small muted">Nothing in stock fits your must-haves right now.</div>}
+          <input ref={spaceInput} type="file" accept="image/*" hidden onChange={(ev) => { const f = ev.target.files?.[0]; if (f && tryFor) tryInSpace(tryFor, f); ev.target.value = ""; }} />
 
           {no.length > 0 && (
             <>
@@ -139,7 +188,7 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
           )}
 
           <div className="group-head" data-pilot="makers"><h3>Get it made</h3><span className="chip muted">{makers.length}</span>
-            <span className="tiny muted">Tick the ones to message - Tesselle writes it, you send it</span></div>
+            <span className="tiny muted">Tick the ones to ask - Tesselle writes, emails or calls them for you</span></div>
           <div className="maker-grid">
             {makers.map((e, i) => {
               const on = picked.includes(e.item_id);

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import re
 import time
@@ -29,7 +30,14 @@ from ..models import Brief, Specs
 log = logging.getLogger(__name__)
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-      "Chrome/130.0 Safari/537.36")
+      "Chrome/130.0.0.0 Safari/537.36")
+# Full browser request headers: several Indian stores (e.g. Nykaa) refuse bare requests.
+BROWSER_HEADERS = {
+    "User-Agent": UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-IN,en;q=0.9", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "none", "Sec-Fetch-Dest": "document",
+    "Upgrade-Insecure-Requests": "1", "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130"', "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
 STORES_IN = ("Amazon.in, Flipkart, IKEA India, Pepperfry, Urban Ladder, Croma, Reliance Digital, Myntra, "
              "Tata CLiQ, Nykaa, FirstCry, Decathlon and brands' own online stores")
 
@@ -62,20 +70,24 @@ async def _grounded_once(c: Any, model_name: str, thinking: Any, prompt: str, pu
 
 
 async def _grounded(prompt: str, purpose: str) -> tuple[str, list[Any], list[Any], dict[str, Any]]:
-    """Hedged grounded search: the fast regional model first; if it hasn't answered in 12 s the primary
-    model starts in parallel and the first good answer wins (the other is cancelled)."""
+    """Hedged grounded search. The fast regional model goes first; if it hasn't answered in 12 s (or came back
+    without sources) the primary model starts in parallel, and every failed attempt is replaced by a fresh fast
+    attempt while time remains. The first answer with sources wins; the others are cancelled."""
     gemini._guard("llm")
-    fast = asyncio.create_task(_grounded_once(gemini.fast_client(), config.MODEL_FAST, gemini.fast_thinking(), prompt, purpose))
-    tasks = {fast}
-    done, _ = await asyncio.wait(tasks, timeout=12)
-    if not done or fast.exception() is not None:
-        tasks.add(asyncio.create_task(_grounded_once(gemini.client(), config.MODEL_REASONING,
-                                                     types.ThinkingConfig(thinking_level="low"), prompt, purpose)))
+
+    def fast_try(n: int) -> asyncio.Task:
+        p = prompt if n == 0 else "Use Google Search to answer. " + prompt
+        return asyncio.create_task(_grounded_once(gemini.fast_client(), config.MODEL_FAST, gemini.fast_thinking(), p, purpose))
+
+    started = time.perf_counter()
+    deadline = started + 80
+    attempts = 1
+    pending = {fast_try(0)}
+    primary_started = False
     last: BaseException | None = None
-    deadline = time.perf_counter() + 90
-    pending = set(tasks)
     while pending and time.perf_counter() < deadline:
-        done, pending = await asyncio.wait(pending, timeout=max(1, deadline - time.perf_counter()), return_when=asyncio.FIRST_COMPLETED)
+        wait = 12 if not primary_started else max(1, deadline - time.perf_counter())
+        done, pending = await asyncio.wait(pending, timeout=wait, return_when=asyncio.FIRST_COMPLETED)
         for t in done:
             if t.exception() is None:
                 for other in pending:
@@ -83,6 +95,13 @@ async def _grounded(prompt: str, purpose: str) -> tuple[str, list[Any], list[Any
                 return t.result()
             last = t.exception()
             log.warning("%s: grounded search attempt failed (%s)", purpose, type(last).__name__)
+        if not primary_started and (not done or last is not None):
+            primary_started = True
+            pending.add(asyncio.create_task(_grounded_once(gemini.client(), config.MODEL_REASONING,
+                                                           types.ThinkingConfig(thinking_level="low"), prompt, purpose)))
+        if done and attempts < 4 and time.perf_counter() - started < 55:
+            pending.add(fast_try(attempts))
+            attempts += 1
     for t in pending:
         t.cancel()
     raise RuntimeError(f"Web search unavailable ({type(last).__name__ if last else 'timeout'})")
@@ -163,23 +182,184 @@ def _store_name(stated: str, url: str, site: Optional[str]) -> str:
     return host.split(".")[0].replace("-", " ").title()
 
 
+_LD = re.compile(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', re.S | re.I)
+_AMAZON_IMG = re.compile(r'"hiRes":"(https://[^"]+)"|data-old-hires="(https://[^"]+)"|"large":"(https://m\.media-amazon\.com/[^"]+)"')
+_BAD_IMG = re.compile(r"logo|favicon|sprite|placeholder|default[-_]?(image|og)|og-image|/icons?/|\.svg(\?|$)|blank\.", re.I)
+
+
+def _ld_product_images(html: str) -> list[str]:
+    """Product images from schema.org JSON-LD (most stores publish these for Google Shopping)."""
+    out: list[str] = []
+    for block in _LD.findall(html)[:15]:
+        try:
+            data = json.loads(block.strip())
+        except Exception:
+            continue
+        stack = [data]
+        while stack:
+            d = stack.pop()
+            if isinstance(d, list):
+                stack.extend(d)
+                continue
+            if not isinstance(d, dict):
+                continue
+            t = d.get("@type")
+            kinds = t if isinstance(t, list) else [t]
+            if any(k in ("Product", "ProductGroup", "IndividualProduct", "ProductModel") for k in kinds if isinstance(k, str)):
+                img = d.get("image")
+                for i in img if isinstance(img, list) else [img]:
+                    if isinstance(i, dict):
+                        i = i.get("url") or i.get("contentUrl")
+                    if isinstance(i, str):
+                        out.append(i)
+            for key in ("@graph", "hasVariant", "mainEntity", "itemListElement"):
+                if key in d:
+                    stack.append(d[key])
+    return out
+
+
+def _abs(img: str, base: str) -> Optional[str]:
+    img = html_unescape(img.strip()).replace("\\u002F", "/").replace("\\/", "/")
+    if img.startswith("//"):
+        img = "https:" + img
+    elif img.startswith("/"):
+        u = urlparse(base)
+        img = f"{u.scheme}://{u.netloc}{img}"
+    return img if img.startswith("http") else None
+
+
+def best_image(html: str, url: str) -> Optional[str]:
+    """The product's own photo: JSON-LD product image, then og/twitter image, then store-specific patterns.
+    Site logos and favicons are skipped."""
+    found: dict[str, str] = {}
+    for k, v in _META.findall(html):
+        found.setdefault(k.lower(), v)
+    for v, k in _META_REV.findall(html):
+        found.setdefault(k.lower(), v)
+    cands = _ld_product_images(html) + [found.get("og:image") or "", found.get("twitter:image") or ""]
+    for m in _AMAZON_IMG.findall(html)[:3]:
+        cands += [x for x in m if x]
+    clean = [c for c in (_abs(x, url) for x in cands if x) if c]
+    good = [c for c in clean if not _BAD_IMG.search(c)]
+    return (good or [None])[0]
+
+
+async def fetch_html(h: httpx.AsyncClient, url: str, limit: int = 1_600_000) -> Optional[str]:
+    """Read a page like a browser would (the first ~1.6 MB holds the head tags and product data)."""
+    try:
+        async with h.stream("GET", url, headers=BROWSER_HEADERS, follow_redirects=True) as r:
+            if r.status_code >= 400:
+                return None
+            buf = bytearray()
+            async for chunk in r.aiter_bytes():
+                buf += chunk
+                # Enough once the head (og:image) and the first product JSON-LD have arrived.
+                if len(buf) > limit or (len(buf) > 250_000 and b"og:image" in buf and b'"Product"' in buf):
+                    break
+            return buf.decode(r.encoding or "utf-8", errors="replace")
+    except Exception as e:
+        log.info("page fetch failed for %s: %s", url[:80], type(e).__name__)
+        return None
+
+
+async def _is_image(h: httpx.AsyncClient, url: str) -> bool:
+    try:
+        async with h.stream("GET", url, headers={"User-Agent": UA, "Accept": "image/*"}, follow_redirects=True) as r:
+            return r.status_code == 200 and r.headers.get("content-type", "").startswith("image/")
+    except Exception:
+        return False
+
+
+_CDN = {"flipkart": ("flixcart", "flipkart"), "amazon": ("media-amazon", "ssl-images-amazon", "amazon"), "nykaa": ("nykaa",),
+        "pepperfry": ("pepperfry",), "ikea": ("ikea",), "myntra": ("myntassets", "myntra"), "urbanladder": ("urbanladder", "ul-assets"),
+        "firstcry": ("fcglcdn", "firstcry"), "ajio": ("ajio", "assets-jiocdn"), "tatacliq": ("tatacliq", "tata"), "croma": ("croma",),
+        "meesho": ("meesho",), "jiomart": ("jiomart", "jio")}
+
+
+def _same_store(page: str, img: str) -> bool:
+    """A store's product photo lives on the store's own domain or its known image CDN (or a shared Shopify CDN)."""
+    ph = urlparse(page).netloc.lower().removeprefix("www.")
+    ih = urlparse(img).netloc.lower()
+    brand = ph.split(".")[0]
+    keys = _CDN.get(brand, (brand,))
+    return any(k in ih for k in keys) or "cdn.shopify.com" in ih or ih.endswith(ph)
+
+
+async def _cached_images(urls: list[str]) -> dict[str, str]:
+    from .. import store
+    out: dict[str, str] = {}
+    for u in urls:
+        try:
+            snap = await store.db().collection("image_cache").document(hashlib.sha1(u.encode()).hexdigest()).get()
+            if snap.exists and (snap.to_dict() or {}).get("image"):
+                out[u] = snap.to_dict()["image"]
+        except Exception:
+            break
+    return out
+
+
+async def _remember_image(url: str, image: str) -> None:
+    from .. import store
+    try:
+        await store.db().collection("image_cache").document(hashlib.sha1(url.encode()).hexdigest()).set(
+            {"url": url, "image": image, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    except Exception:
+        pass
+
+
+async def fill_missing_images(entries: list[dict[str, Any]]) -> None:
+    """Several Indian marketplaces refuse requests from cloud servers, so a listing can come back without its
+    photo. Fill the gaps from a cache of photos found before, then from Microlink (a link-preview service that
+    reads the page from its own network). A photo is used only if it is on the store's own image host and is
+    not a logo. Every photo found is cached for next time."""
+    missing = [e for e in entries if not e.get("image_url") and e.get("url")][:8]
+    if not missing:
+        for e in entries:
+            if e.get("image_url") and e.get("url"):
+                await _remember_image(e["url"], e["image_url"])
+        return
+    cached = await _cached_images([e["url"] for e in missing])
+    for e in missing:
+        if e["url"] in cached:
+            e["image_url"] = cached[e["url"]]
+    sem = asyncio.Semaphore(4)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(25, connect=6)) as h:
+        async def microlink(e: dict[str, Any]) -> None:
+            async with sem:
+                try:
+                    r = await h.get("https://api.microlink.io/", params={"url": e["url"]})
+                    img = ((r.json().get("data") or {}).get("image") or {}) if r.status_code == 200 else {}
+                    u = img.get("url")
+                    if u and _same_store(e["url"], u) and not _BAD_IMG.search(u) and (img.get("width") or 0) >= 200 and (img.get("size") or 0) > 6000:
+                        e["image_url"] = u
+                except Exception as err:
+                    log.info("microlink lookup skipped: %s", type(err).__name__)
+
+        await asyncio.gather(*(microlink(e) for e in missing if not e.get("image_url")))
+    for e in entries:
+        if e.get("image_url") and e.get("url"):
+            await _remember_image(e["url"], e["image_url"])
+
+
 async def _page_meta(h: httpx.AsyncClient, url: str) -> dict[str, Optional[str]]:
     try:
-        r = await h.get(url, follow_redirects=True)
-        if r.status_code >= 400:
-            return {}
-        html = r.text[:600_000]
-        found: dict[str, str] = {}
-        for k, v in _META.findall(html):
-            found.setdefault(k.lower(), v)
-        for v, k in _META_REV.findall(html):
-            found.setdefault(k.lower(), v)
-        img = found.get("og:image") or found.get("twitter:image")
-        if img and img.startswith("//"):
-            img = "https:" + img
-        return {"image": img if img and img.startswith("http") else None, "title": found.get("og:title"), "site": found.get("og:site_name")}
-    except Exception:
+        html = await asyncio.wait_for(fetch_html(h, url), 14)  # a page that trickles bytes can't stall the search
+    except asyncio.TimeoutError:
         return {}
+    if not html:
+        return {}
+    found: dict[str, str] = {}
+    for k, v in _META.findall(html[:400_000]):
+        found.setdefault(k.lower(), v)
+    for v, k in _META_REV.findall(html[:400_000]):
+        found.setdefault(k.lower(), v)
+    return {"image": best_image(html, url), "title": found.get("og:title"), "site": found.get("og:site_name")}
+
+
+def _amazon_image(url: str) -> Optional[str]:
+    """Amazon often serves a robot check to servers; its image CDN still has the product photo by ASIN."""
+    m = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", url or "")
+    return f"https://m.media-amazon.com/images/P/{m.group(1)}.01._SCLZZZZZZZ_.jpg" if m and "amazon." in url else None
 
 
 def _musts(b: Brief) -> str:
@@ -198,7 +378,7 @@ def _budget(b: Brief) -> str:
     return "not set"
 
 
-_INDEX = re.compile(r"/(cat|category|categories|collections?|search|s|w|wholesale|browse|shop|c|market)/|[?&](q|k|search)=", re.I)
+_INDEX = re.compile(r"/(cat|category|categories|collections?|search|s|w|wholesale|browse|shop|c|market)/|/pr\?|[?&](q|k|search|sid)=", re.I)
 
 # Stores known to sell and deliver in India (plus any .in domain). Used to keep results deliverable.
 _INDIA_STORES = ("amazon.in", "flipkart.com", "pepperfry.com", "urbanladder.com", "croma.com", "myntra.com",
@@ -287,11 +467,12 @@ async def find_listings(b: Brief, region: str) -> dict[str, Any]:
         f"Give individual product pages, not category or search pages.\n{fmt}"
     )
     entries, stats = await _listing_round(b, city, prompt, "shopping-agent")
-    if sum(_serves_india(e["url"]) for e in entries) < 3:
+    if sum(_serves_india(e["url"]) and not _is_listing_index(e["url"]) for e in entries) < 3:
         # Too few deliverable results: search Indian marketplaces directly and merge.
         prompt2 = (
-            f"Search Amazon.in, Flipkart, IKEA India, Pepperfry and other Indian online stores for product pages a shopper in "
-            f"{city} can order today.\n{want}Only stores that deliver in India.\n{fmt}"
+            f"Search Amazon.in, Flipkart, IKEA India, Pepperfry and other Indian online stores for individual product pages a "
+            f"shopper in {city} can order today - one specific product per line, never a category or search page.\n{want}"
+            f"Only stores that deliver in India.\n{fmt}"
         )
         more, stats2 = await _listing_round(b, city, prompt2, "shopping-agent-india")
         known = {e["url"] for e in entries}
@@ -318,7 +499,7 @@ async def _listing_round(b: Brief, city: str, prompt: str, purpose: str) -> tupl
         fast=True,
     )
     now = datetime.now(timezone.utc).isoformat(timespec="minutes")
-    async with httpx.AsyncClient(timeout=7, headers={"User-Agent": UA, "Accept-Language": "en-IN,en;q=0.9"}) as h:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(10, connect=5), headers={"User-Agent": UA, "Accept-Language": "en-IN,en;q=0.9"}) as h:
         async def build(it: FoundListing) -> Optional[dict[str, Any]]:
             if it.line < 0 or it.line >= len(lines):
                 return None
@@ -341,7 +522,7 @@ async def _listing_round(b: Brief, city: str, prompt: str, purpose: str) -> tupl
             return {
                 "item_id": "web-" + _hid(url, it.name), "route": "buy", "name": it.name, "description": it.summary,
                 "seller_id": domain, "seller_name": _store_name(it.store, url, meta.get("site")), "seller_label": domain, "url": url,
-                "image_url": meta.get("image"), "image_path": None, "source_title": getattr(chunk.web, "title", None),
+                "image_url": meta.get("image") or _amazon_image(url), "image_path": None, "source_title": getattr(chunk.web, "title", None),
                 "specs": specs.model_dump(), "stock": it.availability, "checked_at": now, "price_inr": it.price_inr,
                 "shipping_inr": None, "shipping_estimate": False, "unresolved": ["Delivery charge and date: see checkout"],
                 "verdict": verdict, "decisive": decisive, "checks": [c.model_dump() for c in fit.checks],
@@ -360,8 +541,11 @@ async def _listing_round(b: Brief, city: str, prompt: str, purpose: str) -> tupl
 async def _finish(b: Brief, city: str, entries: list[dict[str, Any]], stats: list[dict[str, Any]]) -> dict[str, Any]:
     # Prefer real product pages: drop category / search pages when enough product pages were found.
     products = [e for e in entries if not _is_listing_index(e["url"])]
-    if len(products) >= 3:
+    if products:
         entries = products
+    else:
+        for e in entries:
+            e["unresolved"] = ["This link is a store's list of products - pick one there"] + e["unresolved"]
     # Keep it deliverable: stores that serve India first; others only if too few were found, and flagged.
     local = [e for e in entries if _serves_india(e["url"])]
     if len(local) >= 3:
@@ -369,7 +553,7 @@ async def _finish(b: Brief, city: str, entries: list[dict[str, Any]], stats: lis
     for e in entries:
         if not _serves_india(e["url"]):
             e["unresolved"] = [f"May not deliver to {city} - check the store page"] + e["unresolved"]
-    await _rank(b, entries)
+    await asyncio.gather(_rank(b, entries), fill_missing_images(entries))
     # Drop look-alikes that are clearly a different kind of product (far below the best match).
     rel = [e["relevance"] for e in entries if e.get("relevance") is not None]
     if rel:

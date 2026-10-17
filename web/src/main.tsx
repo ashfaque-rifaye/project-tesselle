@@ -5,6 +5,7 @@ import App from "./App";
 import { ToastProvider } from "./components/ui";
 import "./styles.css";
 import "./shell.css";
+import "./v4.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
