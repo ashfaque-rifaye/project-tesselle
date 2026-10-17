@@ -7,8 +7,8 @@
 | Live app (Firebase Hosting) | https://project-tesselle.web.app |
 | Live app / API (Cloud Run) | https://tesselle-448771854429.asia-southeast1.run.app |
 | Pitch deck (PDF) | `deck/Project-Tesselle-Pitch-Deck.pdf` |
-| Demo video (≤ 3 min) | `Project-Tesselle-demo.mp4` (upload to YouTube/Drive and paste the link) |
-| Public GitHub repo | *(push when ready — see README)* |
+| Demo video (2:50) | `Project-Tesselle-demo.mp4` (upload to YouTube/Drive and paste the link) |
+| Public GitHub repo | https://github.com/ashfaque-rifaye/project-tesselle |
 | Theme | Retail & Commerce |
 
 ## One-line pitch

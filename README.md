@@ -15,6 +15,8 @@ or shortcut can silently change a requirement the customer said must stay the sa
 |---|---|
 | **Live app (Firebase Hosting)** | https://project-tesselle.web.app |
 | **Live app / API (Cloud Run)** | https://tesselle-448771854429.asia-southeast1.run.app |
+| **Source code** | https://github.com/ashfaque-rifaye/project-tesselle |
+| **Pitch deck** | [`deck/Project-Tesselle-Pitch-Deck.pdf`](deck/Project-Tesselle-Pitch-Deck.pdf) |
 | **Guided demo** | Open the app → *Launch the guided demo* (about 5 minutes, no sign-up) |
 
 > Demonstration honesty: every seller, price, stock level and maker response is **fictional demo data**
