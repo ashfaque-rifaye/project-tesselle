@@ -1,8 +1,10 @@
 # Connect Tesselle's outreach channels (email, real-time AI phone calls, WhatsApp) and create the owner key.
 # Run in PowerShell from the project folder:   powershell -ExecutionPolicy Bypass -File tools\setup_channels.ps1
+# Only one channel:                               ... -File tools\setup_channels.ps1 -Only gmail   (or owner, twilio)
 # Nothing typed here is written to disk or to the repo: each value goes straight into Secret Manager in
 # the tesselle-demandfoundry project, readable only by the Cloud Run service account.
 
+param([ValidateSet("", "owner", "gmail", "twilio")][string]$Only = "")
 $ErrorActionPreference = "Stop"
 $Project = "tesselle-demandfoundry"
 $Runtime = "serviceAccount:tesselle-runtime@tesselle-demandfoundry.iam.gserviceaccount.com"
@@ -29,7 +31,9 @@ Write-Host "Using Google account:" (gcloud config get-value account) "- project 
 gcloud services enable secretmanager.googleapis.com --project $Project | Out-Null
 
 # 1. Owner key: lets YOUR browsers send from your inbox / phone line; the public demo can't.
-if ((Read-Host "Create a new owner key? (y/n)") -eq "y") {
+function Want($name, $question) { if ($Only) { return $Only -eq $name } return (Read-Host $question) -eq "y" }
+
+if (Want "owner" "Create a new owner key? (y/n)") {
     $bytes = New-Object byte[] 18
     [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
     $key = [Convert]::ToBase64String($bytes).Replace("+", "-").Replace("/", "_").TrimEnd("=")
@@ -39,7 +43,7 @@ if ((Read-Host "Create a new owner key? (y/n)") -eq "y") {
 }
 
 # 2. Email: Gmail app password (Google Account > Security > 2-Step Verification on > App passwords).
-if ((Read-Host "Connect Gmail for sending and reading replies? (y/n)") -eq "y") {
+if (Want "gmail" "Connect Gmail for sending and reading replies? (y/n)") {
     $addr = Read-Host "  Gmail address to send from"
     $pw = Read-Plain "  16-character app password (input hidden)"
     $name = Read-Host "  Sender name shown to makers (Enter for 'Tesselle shopping agent')"
@@ -54,7 +58,7 @@ if ((Read-Host "Connect Gmail for sending and reading replies? (y/n)") -eq "y") 
 #    WhatsApp: the Twilio sandbox number (whatsapp:+14155238886) for demos - each recipient first sends the sandbox's
 #    "join <code>" message - or your approved WhatsApp Business sender. Set the sandbox's "When a message comes in"
 #    webhook to https://tesselle-448771854429.asia-southeast1.run.app/api/whatsapp/inbound so replies flow back.
-if ((Read-Host "Connect Twilio for real-time AI calls and WhatsApp? (y/n)") -eq "y") {
+if (Want "twilio" "Connect Twilio for real-time AI calls and WhatsApp? (y/n)") {
     $sid = Read-Host "  Account SID (AC...)"
     $tok = Read-Plain "  Auth token (input hidden)"
     $from = Read-Plain "  Caller ID in +E.164 form - a Twilio number or your verified mobile, e.g. +9198XXXXXXXX (input hidden)"

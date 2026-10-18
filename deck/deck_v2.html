@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Project Tesselle - Pitch Deck</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  @page { size: 1600px 900px; margin: 0; }
+  :root { --ink:#f2f6f4; --ink2:#cdd9d6; --muted:#92a6a4; --faint:#677b7d; --edge:rgba(255,255,255,.12); --volt:#d7ff3c; --volt-ink:#10170a;
+          --green:#30d158; --amber:#ff9f0a; --red:#ff453a; --sky:#64d2ff; --frost:rgba(238,245,242,.92); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0a1416; font-family: Inter, sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide { width: 1600px; height: 900px; position: relative; overflow: hidden; page-break-after: always; padding: 76px 96px; background: #0b1618; }
+  .slide > .bg { position: absolute; inset: 0; z-index: 0; background: url("img/bg-blur.jpg") center / cover; }
+  .slide > .bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 50% at 85% 85%, rgba(255,179,92,.12), transparent 70%), radial-gradient(50% 50% at 10% 0%, rgba(169,189,185,.16), transparent 70%); }
+  .slide > *:not(.bg):not(.photo):not(.foot):not(.rim) { position: relative; z-index: 2; }
+  .slide > .photo { position: absolute; inset: 18px; z-index: 0; border-radius: 34px; overflow: hidden; }
+  .slide > .photo img { width: 100%; height: 100%; object-fit: cover; }
+  .slide > .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,12,14,.78), rgba(5,12,14,.2) 55%, rgba(5,12,14,.05)), linear-gradient(180deg, transparent 55%, rgba(5,12,14,.6)); }
+  .slide > .rim { position: absolute; inset: 34px; border-radius: 26px; border: 1px solid rgba(255,255,255,.3); z-index: 1; }
+  .k { display: inline-flex; align-items: center; gap: 10px; height: 38px; padding: 0 18px 0 14px; border-radius: 999px; font-family: 'Geist Mono', monospace; font-size: 14px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink2); background: rgba(255,255,255,.08); border: 1px solid var(--edge); }
+  .k::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 12px var(--volt); }
+  h1 { font-family: 'Inter Tight', sans-serif; font-weight: 400; font-size: 120px; line-height: .93; letter-spacing: -0.055em; margin: 26px 0 0; }
+  h1 .soft, h2 .soft { color: rgba(242,246,244,.5); font-weight: 300; }
+  h2 { font-family: 'Inter Tight', sans-serif; font-weight: 400; font-size: 64px; line-height: 1.02; letter-spacing: -0.045em; margin: 22px 0 0; max-width: 1300px; }
+  h3 { font-family: 'Inter Tight', sans-serif; font-size: 27px; margin: 0; font-weight: 500; letter-spacing: -0.025em; }
+  p, li { font-size: 21px; line-height: 1.52; color: var(--ink2); }
+  .v { color: var(--volt); }
+  .muted { color: var(--muted); }
+  .mono { font-family: 'Geist Mono', monospace; }
+  .glass { position: relative; background: linear-gradient(160deg, rgba(255,255,255,.1), rgba(255,255,255,.03) 45%, rgba(255,255,255,.05)), rgba(22,38,42,.55); border: 1px solid var(--edge); border-radius: 30px; padding: 28px; box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 30px 70px -36px rgba(0,0,0,.8); }
+  .frost { background: var(--frost); color: #0b1618; border-radius: 30px; padding: 26px; box-shadow: 0 30px 70px -36px rgba(0,0,0,.8); }
+  .frost p { color: #3d4f4c; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid3 { display:grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+  .grid4 { display:grid; grid-template-columns: repeat(4,1fr); gap: 18px; }
+  .chip { display:inline-flex; align-items:center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge); background: rgba(255,255,255,.07); color: var(--ink2); font-size: 16px; font-weight: 550; margin: 0 8px 10px 0; }
+  .chip.g { color:#8af3a6; border-color: rgba(48,209,88,.35); background: rgba(48,209,88,.14); }
+  .chip.r { color:#ff8f86; border-color: rgba(255,69,58,.45); background: rgba(255,69,58,.15); }
+  .chip.a { color:#ffc56e; border-color: rgba(255,159,10,.4); background: rgba(255,159,10,.14); }
+  .chip.vt { color: var(--volt); border-color: rgba(215,255,60,.4); background: rgba(215,255,60,.12); }
+  .pill { display:inline-flex; align-items:center; gap: 10px; height: 54px; padding: 0 26px; border-radius: 999px; background: var(--volt); color: var(--volt-ink); font-weight: 650; font-size: 20px; box-shadow: 0 14px 40px -14px rgba(215,255,60,.6); }
+  .mac { border-radius: 18px; overflow: hidden; border: 1px solid rgba(255,255,255,.16); background: #0a1214; box-shadow: 0 40px 100px -40px rgba(0,0,0,.95); }
+  .mac .bar { height: 30px; display:flex; align-items:center; gap: 7px; padding: 0 12px; background: rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.07); }
+  .mac .bar i { width: 11px; height: 11px; border-radius: 50%; background:#ff5f57; } .mac .bar i:nth-child(2){background:#febc2e} .mac .bar i:nth-child(3){background:#28c840}
+  .mac img { display:block; width: 100%; }
+  .glyph { font-family: 'Inter Tight'; font-size: 64px; font-weight: 300; letter-spacing: -0.04em; color: var(--volt); line-height: 1; margin-bottom: 18px; }
+  .foot { position:absolute; left:96px; right:96px; bottom: 34px; display:flex; justify-content:space-between; font-family:'Geist Mono'; font-size: 12.5px; letter-spacing:.16em; color: var(--muted); text-transform: uppercase; z-index: 3; }
+  .logo { display:flex; align-items:center; gap: 14px; }
+  .logo img { width: 52px; height: 52px; }
+  .logo b { font-family:'Inter Tight'; font-size: 30px; font-weight: 600; letter-spacing: -.03em; }
+  .logo span { display:block; font-family: 'Geist Mono'; font-size: 11px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+  .sbs { display:grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; }
+  .vs { width: 40px; height: 40px; border-radius: 50%; display:grid; place-items:center; background: rgba(255,255,255,.08); font-family:'Geist Mono'; font-size: 12px; color: var(--muted); }
+  .cell { border-radius: 20px; padding: 16px 20px; border:1px solid var(--edge); background: rgba(4,10,12,.45); }
+  .cell .kk { font-family:'Geist Mono'; font-size: 12.5px; letter-spacing:.14em; color: var(--muted); text-transform: uppercase; }
+  .cell .vv { font-family:'Inter Tight'; font-size: 34px; font-weight: 500; letter-spacing: -.035em; margin-top: 4px; }
+  .keep { border-color: rgba(215,255,60,.55); background: linear-gradient(160deg, rgba(215,255,60,.14), rgba(4,10,12,.45)); } .keep .kk { color: var(--volt); }
+  .prop { border: 1.5px dashed rgba(255,69,58,.7); } .prop .vv { text-decoration: line-through; text-decoration-color: rgba(255,69,58,.8); text-decoration-thickness: 3px; }
+  ul { margin: 10px 0 0; padding: 0; list-style: none; }
+  li { margin: 0 0 14px; padding-left: 40px; position: relative; }
+  li::before { content: ""; position: absolute; left: 0; top: 7px; width: 22px; height: 22px; border-radius: 50%; background: var(--volt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310170a' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 14px no-repeat; }
+  .arch { display:grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 20px; align-items: stretch; margin-top: 34px; }
+  .box h4 { margin: 0 0 10px; font-family:'Geist Mono'; font-size: 13px; letter-spacing:.16em; text-transform: uppercase; color: var(--volt); font-weight: 500; }
+  .box div { font-size: 18px; color: var(--ink2); line-height: 1.6; }
+  .track { position: relative; display: flex; flex-direction: column; gap: 44px; }
+  .track::before { content: ""; position: absolute; left: 24px; top: 22px; bottom: 22px; width: 3px; border-radius: 3px; background: linear-gradient(var(--volt), rgba(215,255,60,.45)); box-shadow: 0 0 14px rgba(215,255,60,.5); }
+  .beat { display:grid; grid-template-columns: 50px 1fr; gap: 18px; align-items: center; position: relative; }
+  .beat .n { width: 50px; height: 50px; border-radius: 50%; display:grid; place-items:center; font-family:'Geist Mono'; font-weight:600; color: var(--volt-ink); background: var(--volt); font-size: 15px; box-shadow: 0 0 0 5px rgba(215,255,60,.14); }
+  .beat b { font-size: 27px; font-weight: 600; letter-spacing: -.01em; }
+  .beat span { display:block; color: var(--muted); font-size: 20px; margin-top: 2px; }
+  .shot { display:block; width: 100%; border-radius: 22px; border: 1px solid rgba(255,255,255,.16); box-shadow: 0 30px 80px -34px rgba(0,0,0,.95); object-fit: cover; object-position: top; }
+  .stat { font-family: 'Inter Tight'; font-size: 74px; font-weight: 300; letter-spacing: -.05em; line-height: 1; }
+  .stat small { font-size: 34px; color: var(--muted); }
+  .route { position: relative; height: 14px; border-radius: 14px; background: rgba(255,255,255,.1); margin: 26px 0 30px; }
+  .route i { position: absolute; left: 0; top: 0; bottom: 0; width: 26%; border-radius: inherit; background: linear-gradient(90deg, #ffb35c, var(--volt)); box-shadow: 0 0 18px rgba(215,255,60,.55); }
+  .route b { position: absolute; left: 26%; top: 50%; width: 30px; height: 30px; margin-left: -15px; transform: translateY(-50%); border-radius: 50%; background: #fff; box-shadow: 0 0 0 7px rgba(215,255,60,.25); }
+</style>
+</head>
+<body>
+
+<!-- 1 Title -->
+<section class="slide" style="padding: 96px 120px">
+  <div class="photo"><img src="img/hero-deck.jpg" /></div>
+  <div class="rim"></div>
+  <div class="logo"><img src="../web/public/favicon.svg" /><div><b>Tesselle</b><span>Your shopping agent</span></div></div>
+  <div style="margin-top: 64px"><div class="k">Google Cloud AI Builder Cup 2026 · Retail &amp; Commerce</div>
+  <h1>One agent for<br/><span class="soft">everything that</span><br/>has to fit.</h1>
+  <p style="max-width: 760px; margin-top: 28px; font-size: 24px; color: var(--ink)">Say it, show it, or look at it through your glasses. Tesselle draws ideas into your own photo, finds real products in stores that deliver to you, calls real makers, and orders - checking every step against your must-haves.</p>
+  <div style="margin-top: 24px; display:flex; gap: 12px; align-items:center; flex-wrap: wrap"><span class="pill">project-tesselle.web.app</span><span class="chip" style="margin:0; height: 44px; background: rgba(4,10,12,.5)">Demo · project-tesselle.web.app/demo/tesselle-demo.mp4</span><span class="chip" style="margin:0; height: 44px; background: rgba(4,10,12,.5)">github.com/ashfaque-rifaye/project-tesselle</span></div></div>
+  <div class="foot" style="left:120px; right:120px; bottom: 56px; justify-content: flex-end"><span>Ashfaque Rifaye · Team Tesselle</span></div>
+</section>
+
+<!-- 2 Problem -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">01 · The problem</div>
+  <h2>Finding things is easy. <span class="soft">Getting what fits is not.</span></h2>
+  <div class="grid3" style="margin-top: 56px">
+    <div class="glass"><div class="glyph">≠</div><h3>Similar isn't suitable</h3><p>The size of the gap, the bag or the blouse lives in your head, not in the cart. Filters can't check it, so it comes back.</p></div>
+    <div class="glass"><div class="glyph">☏</div><h3>Makers are offline</h3><p>Tailors, carpenters and print shops answer the phone and WhatsApp, not search boxes. Three quotes take days of calls.</p></div>
+    <div class="glass"><div class="glyph">↯</div><h3>Every device starts over</h3><p>You research on the phone, compare on the laptop, measure in the room. Nothing carries over, and nothing is checked.</p></div>
+  </div>
+  <p style="margin-top: 42px; font-size: 26px; color: var(--ink); max-width: 1250px">The missing piece isn't more products. It's an agent that <b class="v">does the whole job</b> - and holds every store, maker and delivery to what you need.</p>
+  <div class="foot"><span>Project Tesselle</span><span>02</span></div>
+</section>
+
+<!-- 3 Data -->
+<section class="slide" style="padding-top: 64px">
+  <div class="bg"></div>
+  <div class="k">02 · The data</div>
+  <h2 style="font-size: 56px">The cost of guessing - <span class="soft">and the shift to agents.</span></h2>
+  <div class="grid3" style="margin-top: 30px; gap: 16px">
+    <div class="glass" style="padding: 24px"><div class="stat v">$890B</div><p style="margin: 10px 0 4px; color: var(--ink)">of goods returned to US retailers in 2024</p><div class="mono muted" style="font-size: 13px; letter-spacing: .08em">NRF &amp; HAPPY RETURNS · DEC 2024</div></div>
+    <div class="glass" style="padding: 24px"><div class="stat v">~70%</div><p style="margin: 10px 0 4px; color: var(--ink)">of online clothing returns cite size and fit</p><div class="mono muted" style="font-size: 13px; letter-spacing: .08em">CORESIGHT RESEARCH · 2026</div></div>
+    <div class="glass" style="padding: 24px"><div class="stat v">25–40%</div><p style="margin: 10px 0 4px; color: var(--ink)">return rate in online fashion; size &amp; fit is the #1 driver</p><div class="mono muted" style="font-size: 13px; letter-spacing: .08em">ZALANDO RESEARCH · KDD 2021</div></div>
+    <div class="glass" style="padding: 24px"><div class="stat">$170–180B</div><p style="margin: 10px 0 4px; color: var(--ink)">India e-retail by 2030, from $65–66B in 2025 · 290–300M shoppers</p><div class="mono muted" style="font-size: 13px; letter-spacing: .08em">BAIN &amp; FLIPKART · HOW INDIA SHOPS ONLINE 2026</div></div>
+    <div class="glass" style="padding: 24px"><div class="stat">7.2 <small>crore</small></div><p style="margin: 10px 0 4px; color: var(--ink)">registered MSMEs - the makers custom orders depend on</p><div class="mono muted" style="font-size: 13px; letter-spacing: .08em">MINISTRY OF MSME · LOK SABHA, DEC 2025</div></div>
+    <div class="frost" style="padding: 24px"><div class="stat" style="color:#0b1618">$3–5T</div><p style="margin: 10px 0 4px">global commerce AI agents could orchestrate by 2030 · $1T in US retail</p><div class="mono" style="font-size: 13px; letter-spacing: .08em; color:#5b7a00">MCKINSEY · 2025</div></div>
+  </div>
+  <p style="margin-top: 26px; font-size: 21px; color: var(--ink); max-width: 1380px"><b class="v">So what:</b> returns are a fit problem, India's next 100M shoppers are coming online, and the makers who can make things exactly are still offline. An agent that owns fit end to end sits where these meet.</p>
+  <div class="foot"><span>Project Tesselle</span><span>03</span></div>
+</section>
+
+<!-- 4 Solution -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">03 · The solution</div>
+  <h2>One agent. <span class="soft">Real stores, real makers.</span></h2>
+  <div class="grid2" style="margin-top: 40px; align-items: start; grid-template-columns: .8fr 1.2fr">
+    <div style="display:flex; flex-direction:column; gap: 16px">
+      <div class="glass"><h3><span class="v">Understand</span> - from a sentence or a glance</h3><p style="margin: 10px 0 0">Voice, text, photos, video or MetaGlass. Gemini writes the brief and the few facts that decide fit for <i>this</i> purchase.</p></div>
+      <div class="glass"><h3><span class="v">See</span>, <span class="v">shop</span>, <span class="v">ask</span>, <span class="v">order</span></h3><p style="margin: 10px 0 0">Ideas drawn into your own photo, real products checked against every must-have, makers called and emailed for quotes, and a checkout agent that fills the cart - you place the order.</p></div>
+    </div>
+    <div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/v2_cover.jpg" /></div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>04</span></div>
+</section>
+
+<!-- 5 Adaptive journeys -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">04 · Adaptive journeys</div>
+  <h2>Every purchase <span class="soft">gets its own steps.</span></h2>
+  <div class="grid2" style="margin-top: 40px; gap: 60px">
+    <div>
+      <div class="chip vt" style="margin-bottom: 22px">Use case 1 · A messy desk</div>
+      <div class="track" style="gap: 26px">
+        <div class="beat"><div class="n">1</div><div><b>Your space</b><span>MetaGlass sees the desk; voice fills the brief</span></div></div>
+        <div class="beat"><div class="n">2</div><div><b>Size &amp; style</b><span>Fit facts: paper size, pen cup, desk width, ₹5,000</span></div></div>
+        <div class="beat"><div class="n">3</div><div><b>See ideas</b><span>3 ideas drawn into your own photo</span></div></div>
+        <div class="beat"><div class="n">4</div><div><b>Shop &amp; pick</b><span>Real products, shop the look</span></div></div>
+        <div class="beat"><div class="n">5</div><div><b>Order</b><span>Checkout agent · cash on delivery</span></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="chip vt" style="margin-bottom: 22px">Use case 2 · 500 printed jute tote bags</div>
+      <div class="track" style="gap: 26px">
+        <div class="beat"><div class="n">1</div><div><b>Specs</b><span>Quantity, 15×16 in, 2-colour logo, Pune, 3 weeks</span></div></div>
+        <div class="beat"><div class="n">2</div><div><b>Find suppliers</b><span>Real print shops; contacts from their own sites</span></div></div>
+        <div class="beat"><div class="n">3</div><div><b>Get quotes</b><span>Email, WhatsApp or a live AI phone call</span></div></div>
+        <div class="beat"><div class="n">4</div><div><b>Compare quotes</b><span>Each reply checked against the specs</span></div></div>
+        <div class="beat"><div class="n">5</div><div><b>Order &amp; quality check</b><span>Photo of the delivery vs the brief</span></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="mono" style="font-size: 15px; color: var(--muted); margin-top: 26px">Gemini plans and names the steps for each purchase; the fit checker that decides stays deterministic.</p>
+  <div class="foot"><span>Project Tesselle</span><span>05</span></div>
+</section>
+
+<!-- 6 Ideas -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">05 · See ideas</div>
+  <h2>Ideas drawn into <span class="soft">your own photo.</span></h2>
+  <div class="grid2" style="margin-top: 38px; align-items: center; grid-template-columns: 1.25fr .75fr">
+    <div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/v2_ideas.jpg" /></div>
+    <div>
+      <ul>
+        <li>Gemini looks at the space and draws <b style="color:var(--ink)">2–3 different ideas</b> - everything you own stays exactly where it is.</li>
+        <li>Each idea is <b style="color:var(--ink)">tagged with the real products</b> it needs.</li>
+        <li>"Make it narrower" redraws one; <b style="color:var(--ink)">"shop the second one"</b> searches real stores for exactly those products.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>06</span></div>
+</section>
+
+<!-- 7 Shop & order -->
+<section class="slide" style="padding-top: 62px">
+  <div class="bg"></div>
+  <div class="k">06 · Shop &amp; order</div>
+  <h2 style="font-size: 54px">Real products, a real cart, <span class="soft">cash on delivery.</span></h2>
+  <div class="grid2" style="margin-top: 30px; gap: 22px">
+    <div><div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/v2_shoplook.jpg" /></div><h3 style="margin-top: 16px">Shop the look</h3><p style="margin: 6px 0 0; font-size: 19px">Every dot is a real listing from a store that delivers to your PIN - add to picks or save, like a catalogue page.</p></div>
+    <div><div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/v2_agent.jpg" /></div><h3 style="margin-top: 16px">The checkout agent</h3><p style="margin: 6px 0 0; font-size: 19px">Walks the store's checkout - product, cart, PIN, cash on delivery - and stops at "Place order". That tap is yours.</p></div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>07</span></div>
+</section>
+
+<!-- 8 Makers & live calls -->
+<section class="slide" style="padding-top: 62px">
+  <div class="bg"></div>
+  <div class="k">07 · Ask makers</div>
+  <h2 style="font-size: 54px">Real makers, <span class="soft">reached the way they work.</span></h2>
+  <div class="grid2" style="margin-top: 30px; gap: 22px">
+    <div><div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/v2_contacts.jpg" /></div><h3 style="margin-top: 16px">Contacts found, message written</h3><p style="margin: 6px 0 0; font-size: 19px">The outreach agent reads each business's own contact page, then writes the quote request with privacy-checked photos.</p></div>
+    <div><div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/v2_call.jpg" /></div><h3 style="margin-top: 16px">A real phone call, in real time</h3><p style="margin: 6px 0 0; font-size: 19px">Gemini Live on the phone line says it's an AI, asks size, price and lead time, emails the details after the call, and turns the answers into a checked quote.</p></div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>08</span></div>
+</section>
+
+<!-- 9 Devices -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">08 · Glasses, laptop, phone</div>
+  <h2>From a glance <span class="soft">to a doorstep, on any device.</span></h2>
+  <div class="grid2" style="margin-top: 38px; align-items: center">
+    <div>
+      <div class="grid2" style="gap: 16px">
+        <div class="glass" style="padding: 22px"><h3>Look at it</h3><p style="font-size:18px; margin: 8px 0 0">MetaGlass: Gemini Live hears you and sees what you see, about a frame a second.</p></div>
+        <div class="glass" style="padding: 22px"><h3>Say it</h3><p style="font-size:18px; margin: 8px 0 0">A voice agent that waits for you to finish, then does the work.</p></div>
+        <div class="glass" style="padding: 22px"><h3>Continue anywhere</h3><p style="font-size:18px; margin: 8px 0 0">Laptop and phone mirror each other's step, scroll and agent activity.</p></div>
+        <div class="glass" style="padding: 22px"><h3>Pick up where you left</h3><p style="font-size:18px; margin: 8px 0 0">The conversation resumes exactly where it stopped; replay any turn.</p></div>
+      </div>
+      <p class="muted" style="margin-top: 18px; font-size: 17px">MetaGlass is a simulation of a smart-glasses app; real-glasses capture is on the roadmap.</p>
+    </div>
+    <div style="position: relative">
+      <img class="shot" src="img/v2_glass.jpg" style="height: 420px" />
+      <img class="shot" src="img/v2_phone.jpg" style="position:absolute; width: 190px; right: -14px; bottom: -40px; height: 410px; border-radius: 30px; border: 6px solid #1b2426; box-shadow: 0 20px 60px rgba(0,0,0,.75)" />
+    </div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>09</span></div>
+</section>
+
+<!-- 10 Must-haves stay safe -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">09 · How your must-haves stay safe</div>
+  <h2>Language models propose. <span class="soft">Deterministic code decides.</span></h2>
+  <div class="grid2" style="margin-top: 42px; align-items: start">
+    <div>
+      <ul>
+        <li><b style="color:var(--ink)">Fit verdicts</b> - fits / check a detail / doesn't fit, computed in code from structured requirements.</li>
+        <li><b style="color:var(--ink)">Quote deviations</b> - every offered spec is diffed against the brief version it answers.</li>
+        <li><b style="color:var(--ink)">Versioned brief</b> - nothing important changes without your decision; restore any version.</li>
+        <li><b style="color:var(--ink)">Honest uncertainty</b> - photo sizes stay "measure to confirm"; unknown charges never join a total.</li>
+      </ul>
+    </div>
+    <div class="glass" style="border-color: rgba(255,69,58,.45); background: linear-gradient(180deg, rgba(255,69,58,.14), rgba(18,32,36,.6) 60%)">
+      <div style="display:flex; align-items:center; justify-content: space-between"><h3>Supplier proposes a change</h3><span class="chip r" style="margin:0">Your call</span></div>
+      <div class="sbs" style="margin-top: 22px">
+        <div class="cell keep"><div class="kk">Must stay the same</div><div class="vv">15×16 in</div></div>
+        <span class="vs">VS</span>
+        <div class="cell prop"><div class="kk">Proposed</div><div class="vv">14×15 in</div></div>
+      </div>
+      <p style="margin-top: 20px">A seller can propose; only you approve. The agent drafts your reply either way.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>10</span></div>
+</section>
+
+<!-- 11 Agents -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">10 · Gen AI implementation</div>
+  <h2>Gemini agents that act, <span class="soft">grounded in the real web.</span></h2>
+  <div class="grid3" style="margin-top: 36px">
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">VOICE + VISION</div><h3 style="margin-top:8px">Real-time voice agent</h3><p style="margin-bottom:0">Gemini Live native audio drives the app with tools, sees through the camera, resumes sessions and replays turns.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">BRIEF + JOURNEY</div><h3 style="margin-top:8px">Brief writer &amp; planner</h3><p style="margin-bottom:0">Typed output: must-haves, fit facts and the steps for this purchase, re-planned as the brief changes.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">IDEAS</div><h3 style="margin-top:8px">Design agent</h3><p style="margin-bottom:0">Gemini image editing draws ideas into the customer's photo; products located for tags; shop the look.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">SEARCH</div><h3 style="margin-top:8px">Shopping agent + maker scout</h3><p style="margin-bottom:0">ADK graph workflow in parallel: Vertex AI Search over 45 Indian stores + Grounding with Google Search.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">OUTREACH</div><h3 style="margin-top:8px">Outreach &amp; call agents</h3><p style="margin-bottom:0">Finds published contacts, writes requests, phones makers over Twilio + Gemini Live, emails the follow-up.</p></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">ORDER</div><h3 style="margin-top:8px">Checkout agent &amp; memory</h3><p style="margin-bottom:0">Fills store carts with cash on delivery; Agent Engine Sessions + Memory Bank remember preferences.</p></div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>11</span></div>
+</section>
+
+<!-- 12 Architecture -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">11 · Architecture</div>
+  <h2>Built end-to-end <span class="soft">on Google Cloud.</span></h2>
+  <div class="arch">
+    <div class="glass box"><h4>Surfaces</h4><div>React liquid-glass workspace<br/>Laptop · phone · MetaGlass, live-synced<br/>Voice and camera over WebSockets<br/>Makers: phone (Twilio), WhatsApp, Gmail<br/><br/><b style="color:var(--ink)">Firebase Hosting</b> CDN</div></div>
+    <div class="glass box" style="border-color: rgba(215,255,60,.45)"><h4>Cloud Run · FastAPI + Google ADK</h4><div>LlmAgents with typed outputs &amp; tools<br/>Graph workflow (parallel search + join)<br/><b class="v">Fit checker</b> - deterministic code<br/>Gemini Live bridges mic and phone audio<br/>NDJSON progress streams<br/>One service identity · no API keys</div></div>
+    <div class="glass box"><h4>Vertex AI</h4><div>Gemini 3 Flash (text, vision, video)<br/>Gemini Live native audio<br/>Gemini image · Gemini TTS<br/>Vertex AI Search (45 stores)<br/>Grounding with Google Search<br/>Agent Engine: Sessions + Memory Bank</div></div>
+  </div>
+  <div class="arch" style="grid-template-columns: repeat(4, 1fr); margin-top: 20px">
+    <div class="glass box" style="padding: 22px"><h4>Firestore</h4><div>Projects, brief versions, options, calls, quotes, live device sync</div></div>
+    <div class="glass box" style="padding: 22px"><h4>Cloud Storage</h4><div>Photos, ideas, voice turns, call recordings</div></div>
+    <div class="glass box" style="padding: 22px"><h4>Secret Manager</h4><div>Owner key, Gmail and Twilio credentials</div></div>
+    <div class="glass box" style="padding: 22px"><h4>Build · Logging</h4><div>Cloud Build, Artifact Registry; every Gemini call labelled</div></div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>12</span></div>
+</section>
+
+<!-- 13 Trust -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">12 · Trust by design</div>
+  <h2>Honest by default. <span class="soft">Safe by construction.</span></h2>
+  <div class="grid2" style="margin-top: 44px">
+    <div class="glass"><ul style="margin:0">
+      <li>Every option links to a live product page or a real business; prices say "check the store page".</li>
+      <li>Must-haves change only through a labelled decision that creates a new brief version.</li>
+      <li>Ideas keep everything you own; only new products are added - and labelled as ideas.</li>
+      <li style="margin-bottom:0">Contacts come only from what businesses publish.</li>
+    </ul></div>
+    <div class="glass"><ul style="margin:0">
+      <li>The agent says it's an AI on every call; recordings only with consent.</li>
+      <li>Messages, calls and orders need your yes; the final "Place order" tap is always yours.</li>
+      <li>Photos are scrubbed (location data, faces, documents) before a seller sees them.</li>
+      <li style="margin-bottom:0">Vertex AI only, secrets in Secret Manager, daily cost guard.</li>
+    </ul></div>
+  </div>
+  <div class="foot"><span>Project Tesselle</span><span>13</span></div>
+</section>
+
+<!-- 14 Impact & next -->
+<section class="slide">
+  <div class="bg"></div>
+  <div class="k">13 · Impact &amp; what's next</div>
+  <h2>From one desk <span class="soft">to how India buys anything custom.</span></h2>
+  <div class="route" style="margin-top: 30px"><i style="width: 32%"></i><b style="left: 32%"></b></div>
+  <div class="grid4">
+    <div class="frost"><div class="mono" style="color:#5b7a00; font-size: 13px; letter-spacing: .16em">NOW</div><h3 style="margin-top:8px">Live agent</h3><p style="font-size:18px; margin-bottom:0">Ideas in your photo, real stores and makers, live AI calls, checkout agent, three devices in sync.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">NEXT</div><h3 style="margin-top:8px">Makers at scale</h3><p style="font-size:18px; margin-bottom:0">WhatsApp Business, Indian phone numbers, Hindi and Tamil voices.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">THEN</div><h3 style="margin-top:8px">One-tap orders</h3><p style="font-size:18px; margin-bottom:0">Agent-ready checkout with store and UPI partners; real glasses app.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">LATER</div><h3 style="margin-top:8px">B2B sourcing</h3><p style="font-size:18px; margin-bottom:0">Bulk briefs, samples, pooled demand when minimum quantities block a maker.</p></div>
+  </div>
+  <div class="frost" style="margin-top: 22px"><h3>Model</h3><p style="margin: 8px 0 0">Free for shoppers. A disclosed fee on orders and quotes won; subscriptions for makers who want qualified, structured briefs instead of vague enquiries.</p></div>
+  <div class="foot"><span>Project Tesselle</span><span>14</span></div>
+</section>
+
+<!-- 15 Thank you -->
+<section class="slide" style="padding: 96px 120px">
+  <div class="photo"><img src="img/hero-deck.jpg" /></div>
+  <div class="rim"></div>
+  <div class="logo"><img src="../web/public/favicon.svg" /><div><b>Tesselle</b><span>Your shopping agent</span></div></div>
+  <div style="margin-top: 92px; display: flex; gap: 60px; align-items: flex-end">
+    <div>
+      <div class="k">Try it · no sign-up</div>
+      <h1 style="font-size: 108px">Everything that<br/><span class="soft">has to fit.</span></h1>
+      <div style="margin-top: 30px; display:flex; gap: 12px; align-items: center"><span class="pill">project-tesselle.web.app</span></div>
+      <p class="mono" style="font-size: 17px; color: var(--ink2); margin-top: 18px">Demo video · project-tesselle.web.app/demo/tesselle-demo.mp4</p>
+      <p class="mono" style="font-size: 17px; color: var(--ink2); margin-top: 6px">Code · github.com/ashfaque-rifaye/project-tesselle</p>
+    </div>
+    <div class="glass" style="padding: 16px; border-radius: 26px; margin-left: auto"><img src="img/v2_qr.png" style="width: 200px; height: 200px; display:block; border-radius: 14px" /></div>
+  </div>
+  <div class="foot" style="left:120px; right:120px; bottom: 56px; justify-content: flex-end"><span>Google Cloud AI Builder Cup 2026 · Thank you</span></div>
+</section>
+
+</body>
+</html>
