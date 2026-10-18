@@ -121,8 +121,10 @@ async def handle(ws: WebSocket, cid: str) -> None:
         opening = (f"Hello! I'm Tesselle, an AI assistant calling on behalf of a customer in {city}. They'd like a quote for "
                    f"{brief.title.lower()}. Is this a good time for a few quick questions?")
         system = (services.CALL_RULES + "\nYou are on a live phone call; keep each turn to one or two short sentences and let them "
-                  "finish speaking. When every question is answered, or they are busy, say a short thank-you and goodbye, then call "
-                  "end_call.\nBrief:\n" + brief.model_dump_json(include={"title", "purpose", "requirements", "budget", "delivery"})
+                  "finish speaking. If they ask for photos, a drawing or the details in writing, say Tesselle will send them by email or "
+                  "WhatsApp and ask which address or number to use (repeat it back to confirm) - never say you can't send anything. Speak "
+                  "English unless they switch to Hindi or another Indian language, then follow them. When every question is answered, or "
+                  "they are busy, say a short thank-you and goodbye, then call end_call.\nBrief:\n" + brief.model_dump_json(include={"title", "purpose", "requirements", "budget", "delivery"})
                   + f"\nYour first words are exactly: \"{opening}\"")
         cfg = types.LiveConnectConfig(
             response_modalities=["AUDIO"],
