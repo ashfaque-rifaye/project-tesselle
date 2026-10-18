@@ -233,3 +233,9 @@
   .island .end .pill.ok { display: none; }
   .island .txt { min-width: 0; }
 }
+
+/* ---------- Live call ---------- */
+.call-live { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 16px; background: rgba(215, 255, 60, 0.1); border: 1px solid rgba(215, 255, 60, 0.3); }
+.cl-wave { display: inline-flex; gap: 3px; align-items: center; height: 22px; }
+.cl-wave i { width: 3px; height: 6px; border-radius: 2px; background: var(--volt); animation: wave 0.8s ease-in-out infinite alternate; }
+.call-audio { width: 100%; height: 36px; }

@@ -676,6 +676,13 @@ async def use_idea(pid: str, cid: str):
     return _ndjson(gen(), pid, "Shopping your idea")
 
 
+@app.post("/api/projects/{pid}/calls/{cid}/followup")
+async def call_followup(pid: str, cid: str, x_owner_key: Optional[str] = Header(None)):
+    await _owner(x_owner_key)
+    await services.send_call_followup(pid, cid)
+    return await _state(pid)
+
+
 @app.post("/api/projects/{pid}/requests/{rid}/recipients/{eid}/find")
 async def find_contact(pid: str, rid: str, eid: str):
     await services.find_recipient_contact(pid, rid, eid)

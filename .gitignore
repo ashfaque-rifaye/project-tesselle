@@ -39,3 +39,6 @@ firebase-debug.log
 
 # Large submission media (upload separately)
 submission/*.mp4
+
+# demo video is hosted, not committed
+web/public/demo/

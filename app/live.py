@@ -41,7 +41,7 @@ LIVE_MODEL = os.environ.get("TESSELLE_LIVE_MODEL", "gemini-live-2.5-flash-native
 LIVE_LOCATION = os.environ.get("TESSELLE_LIVE_LOCATION", "us-central1")
 VOICE = os.environ.get("TESSELLE_LIVE_VOICE", "Aoede")
 SILENCE_MS = int(os.environ.get("TESSELLE_LIVE_SILENCE_MS", "1600"))
-SLOW = {"start_brief", "create_concept", "find_options", "show_look", "draft_messages", "send_messages", "check_replies", "place_order",
+SLOW = {"start_brief", "create_concept", "suggest_ideas", "shop_idea", "find_options", "show_look", "draft_messages", "send_messages", "check_replies", "place_order",
         "save_camera_view"}
 RESUME_WINDOW_S = 100 * 60
 
@@ -93,6 +93,8 @@ DECLS = [
         {"kind": _s("string", enum=["space", "inspiration", "item"]), "note": _s("string")}, ["kind"]),
     _fn("choose_path", _doc(A.choose_path), {"path": _s("string", enum=["buy", "make", "either", "source"])}, ["path"]),
     _fn("confirm_brief", _doc(A.confirm_brief)),
+    _fn("suggest_ideas", _doc(A.suggest_ideas), {"instruction": _s("string")}),
+    _fn("shop_idea", _doc(A.shop_idea), {"idea_title": _s("string")}),
     _fn("create_concept", _doc(A.create_concept), {"instruction": _s("string")}, ["instruction"]),
     _fn("find_options", _doc(A.find_options)),
     _fn("show_look", _doc(A.show_look), {"names": _s("array", items={"type": "string"})}),
@@ -253,6 +255,13 @@ async def handle(ws: WebSocket, pid: str, stage: str, owner_ok: bool, public_bas
             await session.send_client_content(turns=types.Content(role="user", parts=[types.Part(text=nudge)]), turn_complete=True)
 
             async def save_view(kind: str, note: str = "") -> dict[str, Any]:
+                for _ in range(12):  # the first frame may still be on its way
+                    if last_frame["jpeg"]:
+                        break
+                    await asyncio.sleep(0.25)
+                if not await store.get_brief(pid):
+                    # No brief yet: what the customer just said goes with the photo, so the brief follows their words.
+                    note = (note + " " + rec["u_text"]).strip()
                 if not last_frame["jpeg"]:
                     return {"ok": False, "error": "The camera isn't on. Ask the customer to turn on the camera or use ask_for_photo."}
                 try:

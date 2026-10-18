@@ -154,6 +154,7 @@ export interface Recipient {
   error?: string | null;
   call_id?: string;
   sent_at?: string;
+  followup?: { channel: string; to: string; sent_at: string; photos?: number } | null;
 }
 
 export interface Attachment {
@@ -289,6 +290,8 @@ export interface Call {
   name: string;
   status: string;
   transcript: { who: "agent" | "them"; text: string }[];
+  stream?: string | null;
+  recording?: string | null;
   created_at: string;
 }
 

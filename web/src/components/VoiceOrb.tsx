@@ -129,20 +129,22 @@ export function useLiveVoice(pid: string, view: Stage, on: { navigate: (s: Stage
     if (!resume) { setHeard(""); setSaid(""); setDone([]); }
     setMode("connecting");
     try {
-      const media = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      const demo = window.__tslDemo;
+      const media = demo ? null : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
       stream.current = media;
       const mic = new AudioContext();
       micCtx.current = mic;
       const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
       await mic.audioWorklet.addModule(url);
       const node = new AudioWorkletNode(mic, "tsl-mic");
-      mic.createMediaStreamSource(media).connect(node);
+      if (media) mic.createMediaStreamSource(media).connect(node);
       const out = new AudioContext({ sampleRate: 24000 });
       outCtx.current = out;
       const an = out.createAnalyser();
       an.fftSize = 256;
       an.connect(out.destination);
       analyser.current = an;
+      if (demo) { demo.attach({ mic, node, out, analyser: an }); demo.speaking = speaking; }
 
       const sock = new WebSocket(`${wsBase()}/api/projects/${pid}/live`);
       sock.binaryType = "arraybuffer";
@@ -227,6 +229,7 @@ export function useLiveVoice(pid: string, view: Stage, on: { navigate: (s: Stage
     }
   }, [pid, stop, teardown, flushNav, opts.camera]); // eslint-disable-line
 
+  useEffect(() => { if (window.__tslDemo) window.__tslDemo.mode = mode; }, [mode]);
   // Keep the visual state honest as audio drains.
   useEffect(() => {
     if (mode !== "speaking") return;

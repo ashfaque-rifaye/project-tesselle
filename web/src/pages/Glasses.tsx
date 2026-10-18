@@ -27,8 +27,15 @@ export default function Glasses() {
   const v = useLiveVoice(pid || "", "inspire", { navigate: () => {}, refresh: () => load() }, { camera: true });
   const active = v.mode !== "off" && v.mode !== "error";
 
+  const feed = new URLSearchParams(location.search).get("feed");
   useEffect(() => {
     let cancelled = false;
+    if (feed && video.current) {
+      video.current.src = feed;
+      video.current.loop = true;
+      video.current.play().catch(() => {});
+      return;
+    }
     openStream(facing, false)
       .then((s) => {
         if (cancelled) return s.getTracks().forEach((t) => t.stop());

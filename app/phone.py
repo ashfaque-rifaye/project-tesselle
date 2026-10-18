@@ -16,7 +16,9 @@ import asyncio
 import base64
 import json
 import logging
+import io
 import time
+import wave
 from typing import Any, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -76,6 +78,23 @@ def pcm24k_to_ulaw8k(data: bytes, carry: list[int]) -> bytes:
     return bytes(_ENC[((samples[i] + samples[i + 1] + samples[i + 2]) // 3) & 0xFFFF] for i in range(0, n, 3))
 
 
+def _stereo_wav(caller: bytes, agent: bytes) -> bytes:
+    """Both sides of a call as one 8 kHz stereo WAV: the business on the left, Tesselle on the right."""
+    n = max(len(caller), len(agent))
+    caller, agent = caller.ljust(n, b"\xff"), agent.ljust(n, b"\xff")
+    out = array.array("h", bytes(4 * n))
+    for i in range(n):
+        out[2 * i] = _DEC[caller[i]]
+        out[2 * i + 1] = _DEC[agent[i]]
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(out.tobytes())
+    return buf.getvalue()
+
+
 def twiml_stream(ws_url: str, token: str) -> str:
     return ('<?xml version="1.0" encoding="UTF-8"?><Response><Connect>'
             f'<Stream url="{ws_url}"><Parameter name="token" value="{token}"/></Stream>'
@@ -94,6 +113,8 @@ async def handle(ws: WebSocket, cid: str) -> None:
     call: dict[str, Any] = {}
     closed = asyncio.Event()
     ending = asyncio.Event()
+    rec_in, rec_out = bytearray(), bytearray()  # both sides of the call (mu-law 8 kHz), only when recording is on
+    recording = False
     carry: list[int] = []
     pending_save = {"t": 0.0}
 
@@ -118,12 +139,15 @@ async def handle(ws: WebSocket, cid: str) -> None:
                     return
         call_ctx, brief = await services.call_context(pid, cid)
         city = services._city(brief) or "India"
+        recording = bool(call.get("record"))
         opening = (f"Hello! I'm Tesselle, an AI assistant calling on behalf of a customer in {city}. They'd like a quote for "
-                   f"{brief.title.lower()}. Is this a good time for a few quick questions?")
+                   f"{brief.title.lower()}." + (" This call is recorded for the customer." if recording else "")
+                   + " Is this a good time for a few quick questions?")
         system = (services.CALL_RULES + "\nYou are on a live phone call; keep each turn to one or two short sentences and let them "
                   "finish speaking. If they ask for photos, a drawing or the details in writing, say Tesselle will send them by email or "
                   "WhatsApp and ask which address or number to use (repeat it back to confirm) - never say you can't send anything. Speak "
-                  "English unless they switch to Hindi or another Indian language, then follow them. When every question is answered, or "
+                  "English unless they switch to Hindi or another Indian language, then follow them. Before saying goodbye, offer to email them the "
+                  "full details and photos and confirm the email address (the one on file, or the one they give). When every question is answered, or "
                   "they are busy, say a short thank-you and goodbye, then call end_call.\nBrief:\n" + brief.model_dump_json(include={"title", "purpose", "requirements", "budget", "delivery"})
                   + f"\nYour first words are exactly: \"{opening}\"")
         cfg = types.LiveConnectConfig(
@@ -157,7 +181,10 @@ async def handle(ws: WebSocket, cid: str) -> None:
                     msg = json.loads(await ws.receive_text())
                     ev = msg.get("event")
                     if ev == "media":
-                        pcm = ulaw8k_to_pcm16k(base64.b64decode(msg["media"]["payload"]))
+                        raw = base64.b64decode(msg["media"]["payload"])
+                        if recording:
+                            rec_in.extend(raw)
+                        pcm = ulaw8k_to_pcm16k(raw)
                         await session.send_realtime_input(audio=types.Blob(data=pcm, mime_type="audio/pcm;rate=16000"))
                     elif ev == "mark" and (msg.get("mark") or {}).get("name") == "bye":
                         break
@@ -178,6 +205,11 @@ async def handle(ws: WebSocket, cid: str) -> None:
                                 for p in sc.model_turn.parts or []:
                                     if p.inline_data and p.inline_data.data:
                                         ulaw = pcm24k_to_ulaw8k(p.inline_data.data, carry)
+                                        if ulaw and recording:
+                                            # The agent's audio plays out in real time on the phone: place it on the caller's clock.
+                                            if len(rec_out) < len(rec_in):
+                                                rec_out.extend(b"\xff" * (len(rec_in) - len(rec_out)))
+                                            rec_out.extend(ulaw)
                                         if ulaw:
                                             await ws.send_text(json.dumps({"event": "media", "streamSid": sid,
                                                                            "media": {"payload": base64.b64encode(ulaw).decode()}}))
@@ -186,6 +218,8 @@ async def handle(ws: WebSocket, cid: str) -> None:
                             if sc.output_transcription and sc.output_transcription.text:
                                 line("agent", sc.output_transcription.text)
                             if sc.interrupted:
+                                if recording:
+                                    del rec_out[len(rec_in):]
                                 await ws.send_text(json.dumps({"event": "clear", "streamSid": sid}))
                             if sc.turn_complete:
                                 if call.get("transcript"):
@@ -220,6 +254,11 @@ async def handle(ws: WebSocket, cid: str) -> None:
             for t in call.get("transcript") or []:
                 t.pop("closed", None)
             call["stream"] = "done"
+            if call.get("record") and rec_in:
+                try:
+                    call["recording"] = await store.upload_media(f"projects/{pid}/calls/{cid}", _stereo_wav(bytes(rec_in), bytes(rec_out)), "audio/wav")
+                except Exception:
+                    log.exception("saving the call recording failed")
             await save(True)
             await services.set_live(pid, None)
             try:

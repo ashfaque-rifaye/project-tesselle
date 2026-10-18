@@ -12,6 +12,7 @@ import asyncio
 import io
 import json
 import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -899,7 +900,8 @@ async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], publ
             call_id = store.new_id("call")
             call = {"id": call_id, "request_id": rid, "entry_id": r["entry_id"], "name": r["name"], "to": phone, "status": "dialling",
                     "transcript": [], "turns": 0, "created_at": now_iso(), "processed": False,
-                    "stream_token": secrets.token_urlsafe(18)}  # real-time voice (Twilio Media Streams + Gemini Live)
+                    "stream_token": secrets.token_urlsafe(18),  # real-time voice (Twilio Media Streams + Gemini Live)
+                    "record": os.environ.get("TESSELLE_RECORD_CALLS") == "1"}  # off unless switched on for a demo; the agent says so
             await store.put(pid, "calls", call_id, call)
             await store.db().collection("call_index").document(call_id).set({"pid": pid})
             try:
@@ -1078,6 +1080,74 @@ async def finish_call(pid: str, call_id: str, twilio_status: str = "completed") 
     text = "Phone call transcript:\n" + "\n".join(f"{'Tesselle' if t['who'] == 'agent' else call['name']}: {t['text']}" for t in call["transcript"])
     await add_reply(pid, text=text, request_id=call["request_id"], seller_name=call["name"], entry_id=call["entry_id"])
     await store.log(pid, "agent:call_agent", f"Called {call['name']}: {len(said)} answers noted and checked", kind="agent")
+    try:
+        await _call_followup(pid, call, text)
+    except Exception:
+        log.exception("call follow-up failed")
+
+
+class CallFollowUp(BaseModel):
+    send_details: Literal["email", "whatsapp", "none"] = Field(
+        description="How the business asked to be sent the details, photos or drawing during the call; 'none' if they didn't ask.")
+    address: Optional[str] = Field(default=None, description="The email address or phone number they gave for it, as said; null if none was given.")
+
+
+def _spoken_email(s: Optional[str]) -> Optional[str]:
+    if not s:
+        return None
+    e = re.sub(r"\s+(at|@)\s+", "@", s.strip().lower())
+    e = re.sub(r"\s+(dot|\.)\s+", ".", e).replace(" ", "")
+    return e if re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", e) else None
+
+
+async def send_call_followup(pid: str, call_id: str) -> None:
+    """The customer taps "Email them the details" after a call: send the brief and photos to the business now."""
+    call, _ = await call_context(pid, call_id)
+    await _call_followup(pid, call, "", force=True)
+
+
+async def _call_followup(pid: str, call: dict[str, Any], transcript: str, force: bool = False) -> None:
+    """When the business asks for the details by email during the call, the outreach agent sends them straight away -
+    the brief and the privacy-checked photos - from the connected inbox."""
+    from . import channels
+
+    req = await store.get(pid, "requests", call["request_id"])
+    r = next((x for x in (req or {}).get("recipients", []) if x["entry_id"] == call["entry_id"]), None)
+    if r is None:
+        return
+    fu = CallFollowUp(send_details="email") if force else None
+    if fu is None:
+        fu, _ = await gemini.generate_structured(CallFollowUp, [
+        transcript, "Should Tesselle now send the business the details, photos or a drawing in writing? Yes if they asked for them, or if "
+        "Tesselle offered or promised to send or follow up with the details (for example 'the customer will follow up by email') and the "
+        "business agreed or did not object. Which channel (email unless they asked for WhatsApp), and the address if they said one?",
+        ], purpose="call-followup", fast=True)
+    if fu.send_details != "email":
+        return
+    to = _spoken_email(fu.address) or (r.get("contact") or {}).get("email")
+    if not to:
+        await store.log(pid, "agent:outreach_agent", f"{call['name']} asked for the details by email - add their address to send them", kind="agent")
+        return
+    if not (await channels.status())["email"]:
+        await store.log(pid, "agent:outreach_agent", f"{call['name']} asked for the details by email - connect email sending to send them", kind="agent")
+        if force:
+            raise ServiceError("Email sending isn't connected yet.", 409)
+        return
+    atts = {a["id"]: a for a in req.get("attachments") or []}
+    files = []
+    for aid in r.get("attachments") or []:
+        a = atts.get(aid)
+        if a:
+            data, mime = await store.download_media(a["path"])
+            files.append((re.sub(r"[^A-Za-z0-9]+", "-", a["label"]).strip("-")[:40] + ".jpg", data, mime))
+    body = (f"Hello {call['name']},\n\nThank you for taking our call just now. As you asked, here are the details for the quote.\n\n"
+            + r["body"] + "\n\n--\nSent by Tesselle, an AI shopping agent, for a customer. Just reply to this email to answer.")
+    mid = await channels.send_email(to, r["subject"], body, files)
+    r["followup"] = {"channel": "email", "to": to, "sent_at": now_iso(), "message_id": mid, "photos": len(files)}
+    r.setdefault("contact", {})["email"] = r.get("contact", {}).get("email") or to
+    await store.put(pid, "requests", call["request_id"], req)
+    await store.log(pid, "agent:outreach_agent", f"Emailed {call['name']} the details after the call, as they asked", kind="agent",
+                    detail=f"To {to}" + (f" with {len(files)} photo(s)" if files else "") + f". Reference {req['ref']} - their reply is read automatically.")
 
 
 # =============================================================================================

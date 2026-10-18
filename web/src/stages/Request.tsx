@@ -170,11 +170,21 @@ function RecipientCard({ ctx, req, r, owner, wa }: { ctx: StageCtx; req: SellerR
         </div>
       ) : null}
 
+      {call && call.stream === "live" && (
+        <div className="call-live"><span className="cl-wave" aria-hidden="true">{Array.from({ length: 9 }).map((_, i) => <i key={i} style={{ animationDelay: `${i * 0.09}s` }} />)}</span>
+          <b>On the phone with {r.name}</b><span className="tiny muted">Gemini Live · real-time voice</span></div>
+      )}
       {call && call.transcript.length > 0 && (
         <div className="call-log">
           {call.transcript.slice(-8).map((t, i) => <div key={i} className={`msg ${t.who === "agent" ? "assistant" : "customer"}`}><b>{t.who === "agent" ? "Tesselle" : r.name}:</b> {t.text}</div>)}
         </div>
       )}
+      {call?.recording && <audio className="call-audio" controls preload="none" src={media(call.recording)} aria-label={`Recording of the call with ${r.name}`} />}
+      {call && call.status === "completed" && call.transcript.length > 0 && !r.followup && r.contact?.email && owner && (
+        <button className="btn sm" disabled={!!busy} onClick={() => ctx.act("Emailing the details", `/api/projects/${pid}/calls/${call.id}/followup`, {}, `Emailed ${r.name} the details`)}>
+          <Mail size={13} /> Email them the details</button>
+      )}
+      {r.followup && <span className="tiny found"><Check size={11} /> Emailed the details to {r.followup.to} after the call{r.followup.photos ? ` with ${r.followup.photos} photo${r.followup.photos > 1 ? "s" : ""}` : ""}, as they asked</span>}
       {r.error && r.status === "failed" && <div className="tiny" style={{ color: "var(--amber-ink)" }}><AlertTriangle size={11} /> {r.error}</div>}
 
       {!done && (

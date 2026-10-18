@@ -2,6 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { installDemo } from "./demo";
+
+installDemo();
 import { ToastProvider } from "./components/ui";
 import "./styles.css";
 import "./shell.css";
