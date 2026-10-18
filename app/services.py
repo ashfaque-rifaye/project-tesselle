@@ -233,7 +233,16 @@ def _apply_patch(b: Brief, patch: BriefPatch) -> None:
             setattr(b, field, val)
 
 
+_BRIEF_LOCKS: dict[str, asyncio.Lock] = {}
+
+
 async def edit_brief(pid: str, patch: BriefPatch, by: str = "customer") -> Brief:
+    # The voice agent may change the budget and a requirement at the same moment: apply edits one at a time.
+    async with _BRIEF_LOCKS.setdefault(pid, asyncio.Lock()):
+        return await _edit_brief(pid, patch, by)
+
+
+async def _edit_brief(pid: str, patch: BriefPatch, by: str) -> Brief:
     current = await _require_brief(pid)
     if patch.delivery is not None and patch.delivery.region:
         region, pin = _split_pin(patch.delivery.region)
@@ -561,13 +570,17 @@ async def explore_routes(pid: str) -> AsyncIterator[dict[str, Any]]:
     if not brief.confirmed:
         raise ServiceError("Confirm your brief first, so the search matches what you need.", 409)
     city = _city(brief) or "India"
+    from .agents import shopper
+    idea = ((await store.get_project(pid)) or {}).get("idea")
+    shopper.IDEA.set(idea if idea and idea.get("items") else None)
     sessions = InMemorySessionService()
     runner = Runner(app_name="find-options", node=route_workflow, session_service=sessions)
     session = await sessions.create_session(app_name="find-options", user_id="system", state={"project_id": pid})
     msg = types.Content(role="user", parts=[types.Part(text=f"Find options for brief v{brief.version}")])
     result: Optional[dict[str, Any]] = None
     started = datetime.now(timezone.utc)
-    yield {"type": "progress", "agent": "Shopping agent", "message": f"Searching real stores that deliver to {city}"}
+    yield {"type": "progress", "agent": "Shopping agent", "message": f"Searching real stores that deliver to {city}"
+           + (f" for your idea: {', '.join(idea['items'][:3])}" if idea and idea.get("items") else "")}
     yield {"type": "progress", "agent": "Maker scout", "message": f"Looking for makers near {city} who could make it"}
     async for ev in runner.run_async(user_id="system", session_id=session.id, new_message=msg):
         node = getattr(ev, "node_name", None) or ""
@@ -582,6 +595,14 @@ async def explore_routes(pid: str) -> AsyncIterator[dict[str, Any]]:
         raise ServiceError("The search did not finish - please try again.", 500)
 
     entries = result["entries"]
+    # A store's generic share picture (the same image on different products) is not a product photo.
+    seen_img: dict[str, set[str]] = {}
+    for e in entries:
+        if e.get("image_url"):
+            seen_img.setdefault(e["image_url"], set()).add((e.get("url") or "").split("?")[0])
+    for e in entries:
+        if e.get("image_url") and len(seen_img.get(e["image_url"], ())) > 1:
+            e["image_url"] = None
     if not entries:
         raise ServiceError("The web search is busy right now - please try again in a minute. " + " ".join(result.get("errors") or []), 503)
     entries.sort(key=lambda e: -(e.get("relevance") or 0))
@@ -693,6 +714,14 @@ async def draft_outreach(pid: str, entry_ids: list[str], share_budget: bool = Tr
     rid = store.new_id("req")
     ref = "TSL-" + rid[-6:].upper()
     recipients = []
+    from . import contacts
+    lookups = await asyncio.gather(*(contacts.find(e["seller_name"], e.get("url")) if not (e.get("contact") or {}).get("email")
+                                     else _noop() for e in picked))
+    for e, got in zip(picked, lookups):
+        if got:
+            e["contact"] = {**(e.get("contact") or {"website": e.get("url")}),
+                            **{k: v for k, v in (("email", got.get("email")), ("phone", got.get("phone"))) if v and not (e.get("contact") or {}).get(k)},
+                            "found_on": got.get("source"), "found_page": got.get("page")}
     for e in picked:
         m = next((d for d in drafts if d.recipient.lower()[:12] == e["seller_name"].lower()[:12]), drafts[0] if drafts else None)
         subject = f"{m.subject if m else 'Quote request: ' + brief.title} [{ref}]"
@@ -714,6 +743,64 @@ async def draft_outreach(pid: str, entry_ids: list[str], share_budget: bool = Tr
                         f"{a['label']}: " + ("blurred " + ", ".join(a['privacy']['blurred']) if a["privacy"]["blurred"] else "nothing personal found")
                         for a in attachments), stats=[stats])
     return req
+
+
+async def _noop() -> dict[str, Any]:
+    return {}
+
+
+async def find_recipient_contact(pid: str, rid: str, entry_id: str) -> dict[str, Any]:
+    """Look up a business's published email and phone (its website first, then Google Search)."""
+    from . import contacts
+
+    req = await store.get(pid, "requests", rid)
+    r = next((x for x in (req or {}).get("recipients", []) if x["entry_id"] == entry_id), None)
+    if r is None:
+        raise ServiceError("Recipient not found.", 404)
+    got = await contacts.find(r["name"], r.get("url") or (r.get("contact") or {}).get("website"))
+    c = dict(r.get("contact") or {})
+    if not got:
+        c["found_on"] = None  # looked, nothing published
+        r["contact"] = c
+        await store.put(pid, "requests", rid, req)
+        return req
+    c.update({k: v for k, v in (("email", got.get("email")), ("phone", got.get("phone"))) if v and not c.get(k)})
+    c["found_on"], c["found_page"] = got.get("source"), got.get("page")
+    r["contact"] = c
+    if c.get("email") and r.get("channel") != "whatsapp":
+        r["channel"] = "email"
+    r["channels"] = _channels(c, r["subject"], r["body"])
+    await store.put(pid, "requests", rid, req)
+    await store.log(pid, "agent:outreach_agent", f"Found {r['name']}'s contact details on {got.get('source')}", kind="agent",
+                    detail=" · ".join(x for x in (c.get("email"), c.get("phone"), got.get("page")) if x))
+    return req
+
+
+async def use_idea(pid: str, cid: str) -> AsyncIterator[dict[str, Any]]:
+    """Shop an idea: search real stores for exactly its products, then place the real ones into the customer's photo."""
+    concept = await store.get(pid, "concepts", cid)
+    if not concept or not concept.get("idea"):
+        raise ServiceError("That idea is no longer here.", 404)
+    idea = concept["idea"]
+    await store.update_project(pid, selected_concept_id=cid, idea={"concept_id": cid, "title": idea["title"],
+                                                                  "items": [i["name"] for i in idea["items"]][:3]})
+    await store.log(pid, "customer", f"Chose the idea \"{idea['title']}\"", kind="decision",
+                    detail="Products to find: " + ", ".join(i["name"] for i in idea["items"]))
+    routes = None
+    async for ev in explore_routes(pid):
+        if ev["type"] == "result":
+            routes = ev["routes"]
+        else:
+            yield ev
+    found = sum(1 for e in (routes or {}).get("entries", []) if e["route"] == "buy" and e["verdict"] in ("meets", "possible_with_change"))
+    look = None
+    if routes and any(e.get("image_url") for e in routes["entries"] if e["route"] == "buy"):
+        yield {"type": "progress", "agent": "Design agent", "message": "Placing the real products into your photo"}
+        try:
+            look = await make_look(pid)
+        except ServiceError as e:
+            yield {"type": "progress", "agent": "Design agent", "message": f"Skipped the picture: {e}"}
+    yield {"type": "result", "found": found, "look_id": look["id"] if look else None}
 
 
 class RecipientPatch(BaseModel):

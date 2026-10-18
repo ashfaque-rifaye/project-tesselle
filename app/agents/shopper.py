@@ -10,6 +10,7 @@ deterministic fit checker (app.guard) can verify against the customer's must-hav
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import json
 import os
@@ -390,7 +391,7 @@ async def fill_missing_images(entries: list[dict[str, Any]]) -> None:
 
 VAIS_ENGINE = os.environ.get("TESSELLE_SEARCH_ENGINE",
                              f"projects/{config.PROJECT}/locations/global/collections/default_collection/engines/tesselle-search")
-_PROMO = re.compile(r"/promos?/|social_share|amazon_logo|/www/\d+/\d+/|banner|sprite", re.I)
+_PROMO = re.compile(r"/promos?/|social_share|amazon_logo|/www/\d+/\d+/|banner|sprite|_shopping_\d+x\d+|share[-_]?image|og[-_]?image|ogimage", re.I)
 _tok: dict[str, Any] = {"v": None, "at": 0.0}
 
 
@@ -687,23 +688,35 @@ class ItemSplit(BaseModel):
     items: list[SplitItem] = Field(default_factory=list, description="Empty unless the brief asks for 2+ different products bought separately.")
 
 
+IDEA: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar("idea", default=None)
+
+
 async def split_items(b: Brief) -> list[tuple[str, Brief]]:
     """A brief can ask for several different things ("a desk and a pegboard", "a blouse and matching bangles").
-    Each is searched on its own and checked only against the requirements that apply to it."""
-    if len(b.requirements) < 2:
+    Each is searched on its own and checked only against the requirements that apply to it. When the customer
+    chose an idea, its products are exactly the items searched for."""
+    idea = IDEA.get()
+    wanted = [n for n in (idea or {}).get("items") or [] if n][:3]
+    if len(b.requirements) < 2 and not wanted:
         return []
+    ask = ("Does this shopping brief ask for two or more DIFFERENT products that would be bought as separate items "
+           "(e.g. a desk and a pegboard)? If so, list each product with the ids of the requirements that apply to it - shared "
+           "ones such as colour or budget style may apply to several. A single product, a set sold together, or one product "
+           "with features is NOT several products: return no items.")
+    if wanted:
+        ask = ("The customer chose an idea that needs exactly these products, bought separately: " + "; ".join(wanted) + ". Return "
+               "exactly these as the items, with the same names, each with the ids of the brief requirements that apply to that "
+               "product (none is fine - a size meant for one product must not be applied to another).")
     try:
         out, _ = await asyncio.wait_for(gemini.generate_structured(ItemSplit, [
-            "Does this shopping brief ask for two or more DIFFERENT products that would be bought as separate items "
-            "(e.g. a desk and a pegboard)? If so, list each product with the ids of the requirements that apply to it - shared "
-            "ones such as colour or budget style may apply to several. A single product, a set sold together, or one product "
-            "with features is NOT several products: return no items.",
-            "Brief:\n" + b.model_dump_json(include={"title", "purpose", "requirements"}),
+            ask, "Brief:\n" + b.model_dump_json(include={"title", "purpose", "requirements"}),
         ], purpose="item-split", fast=True), 9)
     except Exception as e:
         log.info("item split skipped: %s", e)
-        return []
-    if len(out.items) < 2:
+        out = ItemSplit(items=[SplitItem(name=n, requirement_ids=[]) for n in wanted])
+    if wanted and not out.items:
+        out.items = [SplitItem(name=n, requirement_ids=[]) for n in wanted]
+    if len(out.items) < (1 if wanted else 2):
         return []
     ids = {r.id for r in b.requirements}
     subs = []

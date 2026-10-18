@@ -56,8 +56,9 @@ export default function Approve({ ctx }: { ctx: StageCtx }) {
   async function place() {
     setBlockers([]);
     try {
-      await ctx.act("Preparing your orders", `/api/projects/${pid}/orders`, { acknowledgements: acks }, "Orders prepared - pay on the store");
-      ctx.go("fulfil");
+      const s = await ctx.act("Preparing your orders", `/api/projects/${pid}/orders`, { acknowledgements: acks }, "Orders prepared - the checkout agent is ready");
+      const first = (s?.orders || []).filter((o) => o.status !== "cancelled" && o.checkout?.url && o.milestones.some((m) => m.key === "ordered" && m.state === "current")).slice(-1)[0];
+      ctx.go("fulfil", first ? `agent=${first.id}` : "");
     } catch (e) {
       setBlockers(((e as { details?: string[] }).details) || []);
     }
@@ -74,7 +75,7 @@ export default function Approve({ ctx }: { ctx: StageCtx }) {
     <div className="section">
       <div className="stage-head">
         <div>
-          <div className="eyebrow">Your picks</div>
+          <div className="eyebrow">Shop &amp; pick · Review &amp; order</div>
           <h2>{cart.length ? `${cart.length} pick${cart.length > 1 ? "s" : ""}, ready to order` : orders.length ? "All ordered" : "Nothing picked yet"}</h2>
           <p>Mix stores and makers. Every pick was checked against your brief{b ? ` (v${b.version})` : ""}; the checkout agent prepares each order and you authorise payment on the store.</p>
         </div>

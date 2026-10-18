@@ -1,6 +1,9 @@
 import { CheckCircle2, CircleHelp, Lock, ShieldCheck, Sparkles } from "lucide-react";
 import { media } from "../api";
+import { FacetTile } from "../components/BriefPanel";
+import { FacetIcon } from "../components/icons";
 import { ProgressStrip } from "../components/ui";
+import { plannedStages } from "../steps";
 import { brief as currentBrief, usePrimary, type StageCtx } from "./ctx";
 
 /** Review the brief Gemini wrote. Editing happens in the brief panel on the right (and by voice). */
@@ -9,18 +12,20 @@ export default function Clarify({ ctx }: { ctx: StageCtx }) {
   const b = currentBrief(state);
   const insp = state.project.inspiration || {};
   const pending = b ? b.requirements.filter((r) => r.kind === "must" && r.status === "needs_checking") : [];
+  const layout = state.project.layout;
+  const after = plannedStages(state).includes("visualise") ? "visualise" : "routes";
 
   async function confirm() {
     try {
       await ctx.act("Confirming your brief", `/api/projects/${pid}/brief/confirm`, {}, "Brief confirmed");
-      ctx.go("visualise");
+      ctx.go(after);
     } catch {
       /* toast */
     }
   }
 
   usePrimary(ctx, b ? (b.confirmed
-    ? { label: "Continue", onClick: () => ctx.go("visualise"), hint: "Your brief is confirmed - you can still change it on the right" }
+    ? { label: "Continue", onClick: () => ctx.go(after), hint: "Confirmed - you can still change anything, any time" }
     : { label: "Confirm brief", onClick: confirm, disabled: pending.length > 0 || !!busy, icon: <ShieldCheck size={16} />,
         hint: pending.length ? `Measure ${pending.length === 1 ? "1 size" : `${pending.length} sizes`} first (tick it on the right)` : "Looks right? Confirm and Tesselle starts looking" })
     : null);
@@ -33,11 +38,28 @@ export default function Clarify({ ctx }: { ctx: StageCtx }) {
     <div className="section">
       <div className="stage-head">
         <div>
-          <div className="eyebrow">Your brief</div>
+          <div className="eyebrow">{layout?.kind_label || "What you need"}</div>
           <h2>{b.title}</h2>
           <p>{b.purpose}</p>
         </div>
       </div>
+
+      {layout && layout.facets.length > 0 && (
+        <div className="card pad params">
+          <div className="row between wrap" style={{ gap: 8 }}>
+            <div className="row" style={{ gap: 8 }}><span className="params-ic"><FacetIcon name={layout.icon} size={15} /></span>
+              <b className="small">What decides the fit for {layout.kind_label.toLowerCase()}</b></div>
+            <span className="tiny muted">{layout.facets.filter((f) => !f.value).length ? `${layout.facets.filter((f) => !f.value).length} still to tell` : "All set"}</span>
+          </div>
+          <div className="params-grid">
+            {layout.facets.map((f) => (
+              <FacetTile key={f.label} icon={f.icon} label={f.label} value={f.value} ask={f.ask} fresh={false} busy={!!busy}
+                onAnswer={(v) => ctx.act("Adding to your brief", `/api/projects/${pid}/brief/requirement`, { text: `${f.label}: ${v}`, kind: "must" }, `${f.label} saved`)} />
+            ))}
+          </div>
+          <div className="tiny muted">Gemini chose these for this purchase from what you said{layout.route_reason ? ` - ${layout.route_reason.charAt(0).toLowerCase()}${layout.route_reason.slice(1)}` : "."}</div>
+        </div>
+      )}
 
       <div className="card pad understood">
         <div className="row" style={{ gap: 8 }}><Sparkles size={15} color="var(--volt)" /><b className="small">What Gemini understood</b></div>

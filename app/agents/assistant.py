@@ -37,9 +37,9 @@ from .runtime import gen_config, model
 
 log = logging.getLogger(__name__)
 APP_NAME = config.AGENT_ENGINE_ID
-STEPS = {"start": "inspire", "brief": "clarify", "visualise": "visualise", "options": "routes", "reach out": "request",
-         "replies": "compare", "picks": "approve", "choose": "approve", "orders": "fulfil", "track": "fulfil",
-         "delivery check": "accept"}
+STEPS = {"start": "inspire", "brief": "clarify", "what you need": "clarify", "ideas": "visualise", "visualise": "visualise",
+         "options": "routes", "shop": "routes", "reach out": "request", "replies": "compare", "picks": "approve", "choose": "approve",
+         "orders": "fulfil", "order": "fulfil", "track": "fulfil", "delivery check": "accept"}
 # Set per request: whether this browser holds the owner key (needed to send from the owner's inbox or phone line).
 OWNER_OK: contextvars.ContextVar[bool] = contextvars.ContextVar("owner_ok", default=False)
 PUBLIC_BASE: contextvars.ContextVar[str] = contextvars.ContextVar("public_base", default="")
@@ -372,9 +372,51 @@ async def remember_preference(preference: str, tool_context: ToolContext) -> dic
     return {"ok": True}
 
 
-TOOLS = [get_project_status, go_to_step, start_brief, set_requirement, remove_requirement, set_budget, set_delivery,
-         rename_project, answer_open_question, add_note, ask_for_photo, choose_path, confirm_brief, create_concept, find_options, show_look, add_to_picks,
-         place_order, draft_messages, send_messages, check_replies, remember_preference]
+def _safe(fn):
+    """A tool that fails tells the agent what happened instead of ending the whole turn."""
+    @functools.wraps(fn)
+    async def run(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except services.ServiceError as e:
+            return {"ok": False, "error": str(e), "details": e.details}
+        except Exception as e:
+            log.exception("tool %s failed", fn.__name__)
+            return {"ok": False, "error": f"That step didn't work ({type(e).__name__}); nothing was changed. Try once more, or ask the customer."}
+    return run
+
+
+async def suggest_ideas(tool_context: ToolContext, instruction: Optional[str] = None) -> dict:
+    """Draws 2-3 different ideas for what to buy - into the customer's own photo if they shared one (nothing they
+    own is changed; only new products are added). Each idea lists the products it needs. ~30 s."""
+    from .. import ideas
+    pid = _pid(tool_context)
+    if await store.get_brief(pid) is None:
+        return NO_BRIEF
+    lines = [ev["message"] async for ev in ideas.generate_ideas(pid, instruction=instruction or "") if ev.get("message")]
+    return {"ok": True, "done": lines[-3:], "navigate": "visualise"}
+
+
+async def shop_idea(tool_context: ToolContext, idea_title: Optional[str] = None) -> dict:
+    """Shops one of the ideas on screen (by its title; default the one selected): searches real stores for exactly
+    its products and places the real ones into the customer's photo as a shoppable picture. ~60 s."""
+    pid = _pid(tool_context)
+    concepts = [c for c in await store.list_coll(pid, "concepts") if c.get("idea")]
+    if not concepts:
+        return {"ok": False, "error": "Suggest ideas first (suggest_ideas)."}
+    project = await store.get_project(pid) or {}
+    pick = next((c for c in concepts if idea_title and idea_title.lower() in c["idea"]["title"].lower()), None) \
+        or next((c for c in concepts if c["id"] == project.get("selected_concept_id")), concepts[-1])
+    found = 0
+    async for ev in services.use_idea(pid, pick["id"]):
+        if ev.get("type") == "result":
+            found = ev.get("found", 0)
+    return {"ok": True, "idea": pick["idea"]["title"], "options_found": found, "navigate": "routes"}
+
+
+TOOLS = [_safe(t) for t in [get_project_status, go_to_step, start_brief, set_requirement, remove_requirement, set_budget, set_delivery,
+         rename_project, answer_open_question, add_note, ask_for_photo, choose_path, confirm_brief, suggest_ideas, shop_idea, create_concept,
+         find_options, show_look, add_to_picks, place_order, draft_messages, send_messages, check_replies, remember_preference]]
 
 INSTRUCTION = """
 You are Tesselle: the customer's shopping agent. You find what they want in real stores, or get it made
@@ -393,8 +435,9 @@ How you work:
      bulk (choose_path).
   2) Make sure you know where it is delivered (city or PIN code) before confirming. Read back the must-haves
      and confirm_brief only when they agree.
-  3) Then offer a concept picture (create_concept) when it is being made or they want to see it, and search
-     (find_options). Then picks and ordering, or messages to makers.
+  3) Then offer ideas (suggest_ideas: 2-3 ideas drawn into their own photo, each with the products it needs) and
+     shop the one they like (shop_idea), or search directly (find_options). Then picks and ordering, or messages
+     to makers.
   If they say "next", "go on" or "do it", do the next step in that order.
 - The brief panel on screen updates live, so small edits need no screen change. Use go_to_step only when the
   step really changes, or when they ask ("back" goes to the previous step).
@@ -439,6 +482,8 @@ TOOL_LABELS = {
     "go_to_step": "Opening that for you",
     "start_brief": "Writing your brief (about 15 s)",
     "set_requirement": "Updating your brief",
+    "suggest_ideas": "Drawing ideas into your photo (about 30 s)",
+    "shop_idea": "Shopping that idea in real stores (about a minute)",
     "remove_requirement": "Removing that from your brief",
     "set_budget": "Updating your budget",
     "set_delivery": "Updating delivery",

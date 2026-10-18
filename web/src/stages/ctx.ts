@@ -35,13 +35,13 @@ export function usePrimary(ctx: StageCtx, p: Primary | null) {
 }
 
 export const STAGE_LABEL: Record<Stage, string> = {
-  inspire: "Start",
-  clarify: "Your brief",
-  visualise: "Visualise",
-  routes: "Options",
-  request: "Reach out",
-  compare: "Replies",
-  approve: "Your picks",
-  fulfil: "Orders",
+  inspire: "Your idea",
+  clarify: "What you need",
+  visualise: "See ideas",
+  routes: "Shop & pick",
+  request: "Ask makers",
+  compare: "Their replies",
+  approve: "Review & order",
+  fulfil: "Order",
   accept: "Delivery check",
 };

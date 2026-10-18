@@ -5,13 +5,13 @@ import type { NextDecision, Stage } from "../types";
 /** Sticky "what's next" bar at the bottom of every step - always visible, even when scrolled. Back on
  *  the left (changed your mind?), the current step's main action on the right. */
 export default function NextBar({
-  nd, view, primary, onPrimary, busy, go, onPhone, back, onBack,
+  nd, view, primary, onPrimary, busy, go, onPhone, back, onBack, name = (s) => STAGE_LABEL[s],
 }: {
   nd: NextDecision; view: Stage; primary: Omit<Primary, "onClick"> | null; onPrimary: () => void; busy: string | null;
-  go: (s: Stage) => void; onPhone: () => void; back: string | null; onBack: () => void;
+  go: (s: Stage) => void; onPhone: () => void; back: string | null; onBack: () => void; name?: (s: Stage) => string;
 }) {
   const elsewhere = nd.stage !== view;
-  const label = primary?.label || (elsewhere ? `Go to ${STAGE_LABEL[nd.stage]}` : nd.cta || "Continue");
+  const label = primary?.label || (elsewhere ? `Go to ${name(nd.stage)}` : nd.cta || "Continue");
   const action = primary ? onPrimary : () => go(nd.stage);
   return (
     <div className="nextbar glass" role="region" aria-label="Next step">
@@ -21,7 +21,7 @@ export default function NextBar({
         </button>
       ) : <span className="nb-dot" />}
       <div className="nb-txt">
-        <div className="nb-k">{primary?.hint ? "This step" : elsewhere ? `Next · ${STAGE_LABEL[nd.stage]}` : "Next"}</div>
+        <div className="nb-k">{primary?.hint ? "This step" : elsewhere ? `Next · ${name(nd.stage)}` : "Next"}</div>
         <div className="nb-t">{primary?.hint || nd.title}</div>
         {!primary?.hint && <div className="nb-d">{nd.detail}</div>}
       </div>

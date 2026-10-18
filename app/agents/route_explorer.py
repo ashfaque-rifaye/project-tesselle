@@ -99,7 +99,8 @@ def _fallback_narrative(entries: list[dict[str, Any]]) -> dict[str, Any]:
     fits = [e for e in buy if e["verdict"] == "meets"]
     close = [e for e in buy if e["verdict"] == "possible_with_change"]
     makers = [e for e in entries if e["route"] == "make"]
-    headline = f"{len(fits)} listing{'s' if len(fits) != 1 else ''} fit every must-have" if fits else "Nothing in stock fits every must-have"
+    headline = (f"{len(fits)} listing{'s' if len(fits) != 1 else ''} fit every must-have" if fits
+                else f"{len(close)} options worth a look, plus makers who can match it" if close else "Makers who can make it exactly for you")
     points = [f"{len(buy)} real listings checked against your must-haves"]
     if close:
         points.append(f"{len(close)} could work once you check a detail on the store page")

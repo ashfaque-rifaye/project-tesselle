@@ -35,7 +35,7 @@ function useFresh(b?: Brief): Set<string> {
 }
 
 /** A key fact the layout says matters for this purchase; a missing one can be filled in place. */
-function FacetTile({ icon, label, value, ask, fresh, onAnswer, busy }: { icon: string; label: string; value?: string | null; ask?: string | null;
+export function FacetTile({ icon, label, value, ask, fresh, onAnswer, busy }: { icon: string; label: string; value?: string | null; ask?: string | null;
   fresh: boolean; onAnswer: (v: string) => void; busy: boolean }) {
   const [open, setOpen] = useState(false);
   const [v, setV] = useState("");

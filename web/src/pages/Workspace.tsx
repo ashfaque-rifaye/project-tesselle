@@ -18,13 +18,13 @@ import Accept from "../stages/Accept";
 import Approve from "../stages/Approve";
 import Clarify from "../stages/Clarify";
 import Compare from "../stages/Compare";
-import { STAGE_LABEL, type Primary, type StageCtx } from "../stages/ctx";
+import { type Primary, type StageCtx } from "../stages/ctx";
 import Fulfil from "../stages/Fulfil";
 import Inspire from "../stages/Inspire";
 import Request from "../stages/Request";
 import Routes from "../stages/Routes";
 import Visualise from "../stages/Visualise";
-import { ORDER, buildSteps, prevStep, type StepInfo } from "../steps";
+import { ORDER, buildSteps, prevStep, railStage, stepLabel, type StepInfo } from "../steps";
 import type { Line, Stage } from "../types";
 import { useProject } from "../useProject";
 
@@ -145,6 +145,16 @@ export default function Workspace() {
       scrollToFraction(v.scroll);
     }
   }, [remote.view?.at, follow]); // eslint-disable-line
+  // Phones show the steps as a strip: keep the open step in view.
+  useEffect(() => {
+    if (!isPhone()) return;
+    const t = setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(".track .rail-item.active");
+      const track = el?.parentElement;
+      if (el && track) track.scrollTo({ left: el.offsetLeft - track.clientWidth / 2 + el.clientWidth / 2, behavior: "smooth" });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [view, !!state]); // eslint-disable-line
   // The voice agent (or any panel) asks for a photo: open the capture sheet.
   useEffect(() => {
     const h = (e: Event) => setCapture((e as CustomEvent<{ kind: string; what: string }>).detail || { kind: "space", what: "" });
@@ -167,6 +177,9 @@ export default function Workspace() {
   };
   const ctx: StageCtx = { state, pid, busy, lines, act, streamAct, go, setPrimary, params };
   const steps = buildSteps(state);
+  const name = (st: Stage) => stepLabel(state, st);
+  const railView = railStage(view);
+  const words = rail || isPhone();
   const doneN = steps.filter((x) => x.status === "done" || x.status === "skipped").length;
   const pct = Math.round((doneN / steps.length) * 100);
   const fill = Math.max(0, steps.findIndex((x) => x.stage === state.next_decision.stage)) / Math.max(1, steps.length - 1);
@@ -197,7 +210,7 @@ export default function Workspace() {
           {rail && (
             <div className="proj-pill well">
               <div className="row between">
-                <span className="chip volt"><span className="dot live" /> {STAGE_LABEL[state.next_decision.stage]}</span>
+                <span className="chip volt"><span className="dot live" /> {name(state.next_decision.stage)}</span>
                 <span className="mono muted" style={{ fontSize: 11 }}>{pct}%</span>
               </div>
               <div className="t">{state.project.title}</div>
@@ -210,12 +223,12 @@ export default function Workspace() {
             {steps.map((st, i) => {
               const locked = st.status === "locked";
               return (
-                <button key={st.stage} className={`rail-item ${view === st.stage ? "active" : ""} ${st.status} ${st.status === "now" && islandBusy ? "working" : ""}`}
+                <button key={st.stage} className={`rail-item ${railView === st.stage ? "active" : ""} ${st.status} ${st.status === "now" && islandBusy ? "working" : ""}`}
                   onClick={() => (locked ? setTip(tip?.stage === st.stage ? null : st) : (setTip(null), go(st.stage)))}
-                  aria-current={view === st.stage ? "step" : undefined} data-tip={`${st.label} · ${st.sub}`}
+                  aria-current={railView === st.stage ? "step" : undefined} data-tip={`${st.label} · ${st.sub}`}
                   aria-label={`${st.label}: ${st.sub}${locked ? " (not yet)" : ""}`}>
                   <span className="rail-dot">{st.status === "done" ? <Check strokeWidth={3} /> : locked ? <Lock size={11} /> : i + 1}</span>
-                  {rail && (
+                  {words && (
                     <span className="rail-txt">
                       <span>{st.label}</span>
                       <span className="rail-sub">{st.sub}</span>
@@ -236,7 +249,7 @@ export default function Workspace() {
             <div className="rail-tip glass" role="note">
               <b>{tip.label}</b>
               <span>{tip.why}</span>
-              <span className="tiny muted">Opens after: {STAGE_LABEL[state.next_decision.stage]} - {state.next_decision.title}</span>
+              <span className="tiny muted">Opens after: {name(state.next_decision.stage)} - {state.next_decision.title}</span>
               <button className="btn sm" onClick={() => { setTip(null); go(state.next_decision.stage); }}>Go to what's next</button>
             </div>
           )}
@@ -278,7 +291,7 @@ export default function Workspace() {
           </main>
 
           <NextBar nd={state.next_decision} view={view} primary={primary} onPrimary={() => primaryClick.current?.()} busy={busy}
-            go={(s) => go(s)} onPhone={() => setHandoff(true)} back={back ? STAGE_LABEL[back] : null} onBack={() => go("back")} />
+            go={(s) => go(s)} onPhone={() => setHandoff(true)} back={back ? name(back) : null} onBack={() => go("back")} name={name} />
         </div>
 
         <aside className="inspector glass" data-pilot="brief-panel">

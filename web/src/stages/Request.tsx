@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { AlertTriangle, ArrowUpRight, Check, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Send, ShieldCheck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ArrowUpRight, Check, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Search, Send, ShieldCheck } from "lucide-react";
 import { media, setUserEmail, userEmail } from "../api";
 import MicButton from "../components/MicButton";
 import { useChannels } from "../components/ProjectMenu";
@@ -56,6 +56,22 @@ function RecipientCard({ ctx, req, r, owner, wa }: { ctx: StageCtx; req: SellerR
   const patch = (b: object, msg?: string) => ctx.act("Saving", base, b, msg);
   const missing = channel === "email" ? !r.contact?.email : channel === "call" ? !r.contact?.phone : false;
   const done = ["sent", "calling", "called", "replied"].includes(r.status);
+  const [finding, setFinding] = useState(false);
+  const tried = useRef(false);
+  useEffect(() => { setEmail(r.contact?.email || ""); setPhone(r.contact?.phone || ""); }, [r.contact?.email, r.contact?.phone]);
+  async function findContact(quiet = false) {
+    setFinding(true);
+    try {
+      await ctx.act("Finding their contact details", `${base}/find`, {}, quiet ? undefined : "Contact details found");
+    } catch { /* toast */ }
+    setFinding(false);
+  }
+  // The outreach agent looks up a business's published email and phone itself - once, when they're missing.
+  useEffect(() => {
+    if (done || tried.current || (r.contact?.email && r.contact?.phone) || r.contact?.found_on !== undefined) return;
+    tried.current = true;
+    findContact(true);
+  }, [r.entry_id]); // eslint-disable-line
 
   async function send() {
     if (channel === "whatsapp" && !(wa && owner)) {
@@ -108,7 +124,10 @@ function RecipientCard({ ctx, req, r, owner, wa }: { ctx: StageCtx; req: SellerR
             onBlur={() => email !== (r.contact?.email || "") && patch({ email })} />}
           {(channel === "call" || channel === "whatsapp") && <input className="input sm" style={{ maxWidth: 220 }} placeholder="Their phone number" value={phone} onChange={(e) => setPhone(e.target.value)}
             onBlur={() => phone !== (r.contact?.phone || "") && patch({ phone })} inputMode="tel" />}
-          {missing && <span className="tiny muted"><AlertTriangle size={11} /> Add their {channel === "email" ? "email" : "number"} (from their website)</span>}
+          {finding ? <span className="tiny muted"><Loader2 size={11} className="spin" /> Looking on their website for a public {channel === "email" ? "email" : "number"}...</span>
+            : r.contact?.found_on && !missing ? <span className="tiny found"><Check size={11} /> Found on {r.contact.found_on}{r.contact.found_page && <> · <a href={r.contact.found_page} target="_blank" rel="noreferrer">source</a></>}</span>
+            : missing ? <><button className="btn sm" onClick={() => findContact()} disabled={!!busy}><Search size={13} /> Find it for me</button>
+              <span className="tiny muted"><AlertTriangle size={11} /> {r.contact?.found_on === undefined ? "Not found yet" : "They don't publish one - add it if you have it"}</span></> : null}
         </div>
       )}
 

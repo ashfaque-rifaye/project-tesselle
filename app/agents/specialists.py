@@ -142,8 +142,8 @@ class ItemNote(BaseModel):
 
 
 class RouteNarrative(BaseModel):
-    headline: str = Field(description="At most 12 words, plain and honest.")
-    points: list[str] = Field(description="2-4 bullet points, each at most 16 words, plain language.")
+    headline: str = Field(description="At most 12 words, positive and honest: what was found for them.")
+    points: list[str] = Field(description="2-3 bullet points, each at most 16 words: how the options were picked and what each path offers.")
     best_next: str = Field(description="At most 14 words: the most useful next step for the customer.")
     item_notes: list[ItemNote] = Field(default_factory=list)
 
@@ -156,7 +156,9 @@ the fit checker (meets / possible_with_change / not_suitable) and real makers wh
 
 Rules:
 - NEVER change or contradict a verdict. Something that breaks a must-have is never recommended.
-- If nothing meets every must-have, the headline says so honestly.
+- Lead with what WAS found and the best way forward ("6 good options from 4 stores - the walnut organiser fits
+  best"). Never open with "No" or "Nothing". If ready-made items need a detail checked, say which one in a
+  point; if a maker is the surest path, present it as an option ("a carpenter can build it to the cm").
 - Short and scannable: headline <= 12 words, 2-4 points <= 16 words each, best_next <= 14 words.
   No jargon (no "routes", "verdicts", "vector search"). Speak like a helpful friend.
 - Prices and stock come from store pages and can change; say "check on the store page" when it matters.

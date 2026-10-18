@@ -641,6 +641,47 @@ async def concept(pid: str, body: ConceptBody, x_visitor_id: Optional[str] = Hea
     return _ndjson(gen(), pid, "Design agent")
 
 
+class IdeasBody(BaseModel):
+    instruction: str = ""
+    base_id: Optional[str] = None
+
+
+@app.post("/api/projects/{pid}/ideas")
+async def ideas_route(pid: str, body: IdeasBody, x_visitor_id: Optional[str] = Header(None)):
+    """2-3 ideas drawn into the customer's photo - or one idea redrawn with their change."""
+    if not store.visitor_image_allowed(_visitor(x_visitor_id)):
+        raise services.ServiceError("You've generated a lot of images this hour - please try again shortly (credit guard).", 429)
+    from . import ideas
+
+    async def gen():
+        async for ev in ideas.generate_ideas(pid, instruction=body.instruction.strip()[:300], base_id=body.base_id):
+            yield ev
+        yield {"type": "result", "state": await _state(pid)}
+
+    return _ndjson(gen(), pid, "Design agent")
+
+
+@app.post("/api/projects/{pid}/ideas/{cid}/use")
+async def use_idea(pid: str, cid: str):
+    """Shop an idea: real products for each of its items, then a shoppable picture in the customer's photo."""
+    async def gen():
+        look_id = None
+        async for ev in services.use_idea(pid, cid):
+            if ev["type"] == "result":
+                look_id = ev.get("look_id")
+            else:
+                yield ev
+        yield {"type": "result", "state": await _state(pid), "look_id": look_id}
+
+    return _ndjson(gen(), pid, "Shopping your idea")
+
+
+@app.post("/api/projects/{pid}/requests/{rid}/recipients/{eid}/find")
+async def find_contact(pid: str, rid: str, eid: str):
+    await services.find_recipient_contact(pid, rid, eid)
+    return await _state(pid)
+
+
 @app.post("/api/projects/{pid}/concepts/{cid}/select")
 async def select_concept(pid: str, cid: str):
     await services.select_concept(pid, cid)

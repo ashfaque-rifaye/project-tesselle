@@ -49,8 +49,16 @@ export interface Concept {
   brief_version: number;
   effects: { requirement_id?: string | null; suggestion: string }[];
   applied?: { from_version: number; to_version: number; changes: { id: string; before?: string | null; after: string; kind: string }[]; reverted?: boolean } | null;
+  label?: string;
+  batch?: string;
+  idea?: Idea | null;
+  spots?: { index: number; name: string; x: number; y: number }[];
+  in_photo?: boolean;
+  base_path?: string | null;
   created_at: string;
 }
+
+export interface Idea { title: string; pitch: string; items: { name: string; why: string }[]; placement: string; tweaks: string[] }
 
 export interface Check {
   requirement_id: string;
@@ -81,6 +89,8 @@ export interface Contact {
   email?: string | null;
   phone?: string | null;
   website?: string | null;
+  found_on?: string | null;
+  found_page?: string | null;
 }
 
 export interface RouteEntry {
@@ -395,6 +405,8 @@ export interface Project {
   view?: { stage: Stage; device: string; at: string; scroll?: number | null; busy?: string | null; kind?: string } | null;
   layout?: BriefLayout | null;
   plan_route?: Route | null;
+  idea?: { concept_id: string; title: string; items: string[] } | null;
+  idea_batch?: string | null;
   live?: { label: string; agent?: string | null; message?: string | null; at: string } | null;
   created_at: string;
   updated_at: string;
@@ -418,6 +430,8 @@ export interface BriefLayout {
   photo_helps: boolean;
   photo_prompt?: string | null;
   show_deadline: boolean;
+  steps?: { stage: Stage; label?: string | null; sub?: string | null }[];
+  plan_v?: number;
   brief_version?: number;
 }
 

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { ArrowUpRight, Check, ClipboardPaste, ImagePlus, Loader2, PackageCheck, ShoppingBag, ShoppingCart, Smartphone, Truck, Undo2 } from "lucide-react";
+import { ArrowUpRight, Check, ClipboardPaste, ImagePlus, Loader2, PackageCheck, ShoppingBag, ShoppingCart, Smartphone, Sparkles, Truck, Undo2 } from "lucide-react";
 import { img, inr, media } from "../api";
 import MicButton from "../components/MicButton";
+import PhoneAgent from "../components/PhoneAgent";
 import { ProgressStrip, favicon } from "../components/ui";
 import type { Order } from "../types";
 import { usePrimary, type StageCtx } from "./ctx";
@@ -13,6 +14,8 @@ function OrderCard({ o, ctx }: { o: Order; ctx: StageCtx }) {
   const { pid, busy } = ctx;
   const [paste, setPaste] = useState(false);
   const [onPhone, setOnPhone] = useState(false);
+  const [agent, setAgent] = useState(ctx.params.get("agent") === o.id);
+  const b = ctx.state.briefs[ctx.state.briefs.length - 1];
   const [text, setText] = useState("");
   const file = useRef<HTMLInputElement>(null);
   const step = cur(o);
@@ -57,11 +60,13 @@ function OrderCard({ o, ctx }: { o: Order; ctx: StageCtx }) {
             <span className="tiny muted">{co.method === "amazon_cart" ? `Amazon cart ready${co.grouped ? ` (${co.grouped} items in one cart)` : ""}` : co.method === "store_checkout" ? "Store checkout pre-filled" : co.method === "maker_confirm" ? "Order with the maker" : "Store page ready"}</span></div>
           <ol className="co-steps">{co.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
           <div className="row wrap" style={{ gap: 6 }}>
-            {co.url && <a className="btn primary sm" href={co.url} target="_blank" rel="noreferrer" data-pilot="checkout"><ShoppingBag size={14} /> {co.label} <ArrowUpRight size={13} /></a>}
+            {co.url && <button className="btn primary sm" onClick={() => setAgent(true)} data-pilot="checkout"><Sparkles size={14} /> Let the agent check out</button>}
+            {co.url && <a className="btn sm" href={co.url} target="_blank" rel="noreferrer"><ShoppingBag size={14} /> {co.label} <ArrowUpRight size={13} /></a>}
             {co.url && <button className="btn sm" onClick={() => setOnPhone(!onPhone)}><Smartphone size={14} /> Finish on my phone</button>}
             <button className="btn sm" onClick={() => setPaste(!paste)} data-pilot="ordered-it"><ClipboardPaste size={14} /> I've ordered it</button>
           </div>
           {onPhone && co.url && <PhoneCheckout url={co.url} store={o.seller_name} />}
+          {agent && <PhoneAgent o={o} city={b?.delivery.region || ""} pin={b?.delivery.pincode || ""} onClose={() => setAgent(false)} onPlaced={() => { setAgent(false); setPaste(true); }} />}
           {paste && (
             <div className="col" style={{ gap: 6 }}>
               <div className="tiny muted">Paste the store's confirmation (email or SMS) or add a screenshot - Gemini reads the order number and delivery date. Or just save it.</div>
@@ -134,9 +139,9 @@ export default function Fulfil({ ctx }: { ctx: StageCtx }) {
   const arriving = live.filter((o) => cur(o) === "delivered");
 
   usePrimary(ctx, !live.length ? { label: "Pick options", onClick: () => ctx.go("routes") }
-    : toBuy.length ? { label: toBuy[0].checkout?.url ? toBuy[0].checkout.label : "I've ordered it", icon: <ShoppingBag size={16} />,
-        onClick: () => (toBuy[0].checkout?.url ? window.open(toBuy[0].checkout.url, "_blank") : (document.querySelector('[data-pilot="ordered-it"]') as HTMLElement | null)?.click()),
-        hint: `${toBuy.length} to buy - pay on the store, then tap "I've ordered it"` }
+    : toBuy.length ? { label: toBuy[0].checkout?.url ? "Let the agent check out" : "I've ordered it", icon: toBuy[0].checkout?.url ? <Sparkles size={16} /> : <ShoppingBag size={16} />,
+        onClick: () => ((document.querySelector(toBuy[0].checkout?.url ? '[data-pilot="checkout"]' : '[data-pilot="ordered-it"]') as HTMLElement | null)?.click()),
+        hint: `${toBuy.length} to buy - the agent fills the cart with cash on delivery; you place it` }
     : arriving.length ? { label: "It arrived", icon: <Truck size={16} />, onClick: () => ctx.act("Saving", `/api/projects/${ctx.pid}/order/advance`, { step: "delivered", order_id: arriving[0].id }, "Marked as arrived").then(() => ctx.go("accept", `order=${arriving[0].id}`)), hint: "When it's at your door" }
     : { label: "Check the delivery", onClick: () => ctx.go("accept"), icon: <PackageCheck size={16} />, hint: "Compare it with your brief" });
 
@@ -146,7 +151,7 @@ export default function Fulfil({ ctx }: { ctx: StageCtx }) {
     <div className="section">
       <div className="stage-head">
         <div>
-          <div className="eyebrow">Orders</div>
+          <div className="eyebrow">Order</div>
           <h2>{toBuy.length ? `${toBuy.length} ready to buy` : arriving.length ? "On the way" : "Your orders"}</h2>
           <p>The checkout agent prepared each one. You pay on the store - Tesselle never sees or enters payment details - then it tracks the order here and in your order history.</p>
         </div>
