@@ -49,6 +49,15 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 const OWNER_KEY = "tsl.owner";
+const USER_EMAIL = "tsl.email";
+
+/** The visitor's own email: messages they send go from (or reply to) this address. */
+export function userEmail(): string {
+  try { return localStorage.getItem(USER_EMAIL) || ""; } catch { return ""; }
+}
+export function setUserEmail(v: string) {
+  try { if (v) localStorage.setItem(USER_EMAIL, v.trim()); else localStorage.removeItem(USER_EMAIL); } catch { /* ignore */ }
+}
 
 /** The owner key unlocks sending from the owner's connected inbox and phone line on this device. */
 export function ownerKey(): string {

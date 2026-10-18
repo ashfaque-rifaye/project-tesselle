@@ -752,7 +752,8 @@ async def update_recipient(pid: str, rid: str, entry_id: str, patch: RecipientPa
     return req
 
 
-async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], public_base: str, wa_ok: bool = False) -> AsyncIterator[dict[str, Any]]:
+async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], public_base: str, wa_ok: bool = False, device: bool = False,
+                        reply_to: Optional[str] = None) -> AsyncIterator[dict[str, Any]]:
     """The outreach agent sends each message on its chosen channel, right from Tesselle."""
     from . import channels
 
@@ -766,6 +767,11 @@ async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], publ
         raise ServiceError("Nothing left to send.", 409)
     for r in targets:
         ch = r.get("channel") or "email"
+        if ch == "email" and device:  # sent from the customer's own Gmail (compose window opened on their device)
+            r["status"], r["sent_at"], r["error"] = "sent", now_iso(), None
+            await store.log(pid, "customer", f"Emailed {r['name']} from their own Gmail", kind="decision",
+                            detail=f"Reference {req['ref']} is in the subject, so the reply can be matched.")
+            continue
         if ch == "email":
             to = (r.get("contact") or {}).get("email")
             if not to:
@@ -786,7 +792,7 @@ async def send_outreach(pid: str, rid: str, entry_ids: Optional[list[str]], publ
                     files.append((re.sub(r"[^A-Za-z0-9]+", "-", a["label"]).strip("-")[:40] + ".jpg", data, mime))
             body = r["body"] + ("\n\n--\nSent by Tesselle, an AI shopping agent, for a customer. Just reply to this email to answer.")
             try:
-                r["message_id"] = await channels.send_email(to, r["subject"], body, files)
+                r["message_id"] = await channels.send_email(to, r["subject"], body, files, reply_to=reply_to)
                 r["status"], r["sent_at"], r["error"] = "sent", now_iso(), None
                 await store.log(pid, "agent:outreach_agent", f"Emailed {r['name']}" + (f" with {len(files)} photo(s)" if files else ""), kind="agent",
                                 detail=f"Sent from your connected inbox. Reference {req['ref']} - replies are read automatically.")
@@ -1847,7 +1853,11 @@ async def make_look(pid: str, entry_ids: Optional[list[str]] = None, in_space: b
         entries = [e for e in entries if e["item_id"] in entry_ids]
     else:
         # The best one or two that fit, plus real products that go with them - a whole scene, like a catalogue page.
-        main = [e for e in entries if e["verdict"] in ("meets", "possible_with_change")][:2]
+        fitting = [e for e in entries if e["verdict"] in ("meets", "possible_with_change")]
+        per_item: dict[str, dict[str, Any]] = {}
+        for e in fitting:
+            per_item.setdefault(e.get("item") or "", e)
+        main = list(per_item.values())[:3] if len(per_item) > 1 else fitting[:2]
         brief = await _require_brief(pid)
         extras = [e for e in entries if e.get("complement")][:3]
         if len(extras) < 2:

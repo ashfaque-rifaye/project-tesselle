@@ -104,7 +104,7 @@
 /* ---- MetaGlass simulation ---- */
 .mg .hud-btn.sm { width: 40px; height: 40px; }
 .mg-flash { position: absolute; inset: 0; background: #fff; opacity: 0.55; pointer-events: none; }
-.mg.lens .feed { filter: saturate(1.05) contrast(1.03); }
+.mg.mg-lens .feed { filter: saturate(1.05) contrast(1.03); }
 .mg-frame { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .mg-frame i { position: absolute; top: 12%; width: 41%; height: 64%; border-radius: 46% 46% 42% 42% / 40% 40% 56% 56%;
   box-shadow: 0 0 0 200vmax rgba(2, 5, 6, 0.86), inset 0 0 40px rgba(0, 0, 0, 0.55), inset 0 0 0 3px rgba(20, 20, 22, 0.95); }

@@ -96,14 +96,21 @@ export default function Glasses() {
   const caption = v.error || (v.who === "you" ? v.heard : v.said);
 
   return (
-    <div className={`glasses mg ${lens ? "lens" : ""}`}>
+    <div className={`glasses mg ${lens ? "mg-lens" : ""}`}>
       {camError ? (
         <div className="feed" style={{ position: "absolute", inset: 0, background: "url(/media/hero-sm.jpg) center / cover" }} />
       ) : (
         <video ref={video} className="feed" autoPlay playsInline muted />
       )}
       {flash && <div className="mg-flash" />}
-      {lens && <div className="mg-frame" aria-hidden="true"><i /><i /><b /></div>}
+      {lens && (
+        <svg className="mg-frame-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path fillRule="evenodd" fill="rgba(2,5,6,0.88)"
+            d="M0 0H100V100H0Z M6 44C6 21 14 13 27 13C40 13 47 21 47 44C47 66 39 77 27 77C14 77 6 66 6 44Z M53 44C53 21 60 13 73 13C86 13 94 21 94 44C94 66 86 77 73 77C60 77 53 66 53 44Z" />
+          <path fill="none" stroke="rgba(28,28,30,0.95)" strokeWidth="0.9" vectorEffect="non-scaling-stroke"
+            d="M6 44C6 21 14 13 27 13C40 13 47 21 47 44C47 66 39 77 27 77C14 77 6 66 6 44Z M53 44C53 21 60 13 73 13C86 13 94 21 94 44C94 66 86 77 73 77C60 77 53 66 53 44Z M47 30Q50 25 53 30" />
+        </svg>
+      )}
       <div className="vignette" />
 
       <div className="hud-top">

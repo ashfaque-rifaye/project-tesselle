@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AlertTriangle, ArrowUpRight, Check, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Send, ShieldCheck } from "lucide-react";
-import { media } from "../api";
+import { media, setUserEmail, userEmail } from "../api";
 import MicButton from "../components/MicButton";
 import { useChannels } from "../components/ProjectMenu";
 import { ProgressStrip, favicon, useToast } from "../components/ui";
@@ -16,6 +16,13 @@ const CH: Record<Channel, { icon: JSX.Element; label: string }> = {
 const STATUS: Record<string, [string, string]> = {
   draft: ["amber", "Ready"], sent: ["teal", "Sent"], calling: ["sky", "Calling..."], called: ["teal", "Called"], replied: ["volt", "Replied"], failed: ["red", "Not sent"],
 };
+
+/** Not the owner: the email opens in the visitor's own Gmail, ready to send (photos as links). */
+function openGmail(r: Recipient, atts: Attachment[], from: string) {
+  const photos = atts.length ? "\n\nPhotos:\n" + atts.map((a) => `${a.label}: ${new URL(media(a.path), window.location.href).href}`).join("\n") : "";
+  const q = new URLSearchParams({ view: "cm", fs: "1", authuser: from, to: r.contact?.email || "", su: r.subject, body: r.body + photos });
+  window.open(`https://mail.google.com/mail/?${q.toString()}`, "_blank");
+}
 
 async function shareWhatsApp(r: Recipient, atts: Attachment[]): Promise<boolean> {
   // Phones: the share sheet sends the message AND the photos to WhatsApp. Desktop: WhatsApp opens with the text.
@@ -56,12 +63,20 @@ function RecipientCard({ ctx, req, r, owner, wa }: { ctx: StageCtx; req: SellerR
       await ctx.streamAct("Saving", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: [r.entry_id], via_device: true }, `Sent to ${r.name} on WhatsApp`).catch(() => {});
       return;
     }
+    if (channel === "email" && !owner) {
+      const from = userEmail() || window.prompt("Your Gmail address - the email opens there, ready to send, and replies come to you:") || "";
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(from)) return toast("Add your email address to send it from your Gmail.", true);
+      setUserEmail(from);
+      openGmail(r, atts, from);
+      await ctx.streamAct("Saving", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: [r.entry_id], via_device: true }, `Opened in your Gmail - press Send there`).catch(() => {});
+      return;
+    }
     if (!owner) {
-      toast("Sending from your inbox or phone line needs the owner key on this device (menu → Connections).", true);
+      toast("AI calls go out from the owner's phone line - this needs the owner key on this device (menu → Connections).", true);
       window.dispatchEvent(new Event("tsl:settings"));
       return;
     }
-    await ctx.streamAct(channel === "call" ? "Calling" : "Sending", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: [r.entry_id] },
+    await ctx.streamAct(channel === "call" ? "Calling" : "Sending", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: [r.entry_id], reply_to: userEmail() || null },
       channel === "call" ? `Calling ${r.name}` : `Sent to ${r.name}`).catch(() => {});
   }
 
@@ -146,7 +161,7 @@ function RecipientCard({ ctx, req, r, owner, wa }: { ctx: StageCtx; req: SellerR
       {!done && (
         <div className="row wrap" style={{ gap: 6 }}>
           <button className="btn sm primary" disabled={!!busy || missing && channel !== "whatsapp"} onClick={send} data-pilot="send-one">
-            {CH[channel].icon} {channel === "call" ? `Call ${r.name.split(" ")[0]}` : channel === "whatsapp" ? (wa && owner ? "Send WhatsApp" : "Open in WhatsApp") : "Send email"}
+            {CH[channel].icon} {channel === "call" ? `Call ${r.name.split(" ")[0]}` : channel === "whatsapp" ? (wa && owner ? "Send WhatsApp" : "Open in WhatsApp") : owner ? "Send email" : "Send from my Gmail"}
           </button>
           {channel !== "call" && !editing && <button className="btn sm ghost" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>}
           <div className="grow" />
@@ -172,11 +187,11 @@ export default function Request({ ctx }: { ctx: StageCtx }) {
 
   async function sendAll() {
     if (!owner) {
-      toast("Sending from your inbox or phone line needs the owner key on this device.", true);
-      window.dispatchEvent(new Event("tsl:settings"));
+      toast("Send each message below - emails open in your own Gmail; AI calls need the owner key.", true);
+      document.querySelector('[data-pilot="send-one"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    await ctx.streamAct("Sending", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: direct.map((r) => r.entry_id) }, "Messages on their way").catch(() => {});
+    await ctx.streamAct("Sending", `/api/projects/${pid}/requests/${req.id}/send`, { entry_ids: direct.map((r) => r.entry_id), reply_to: userEmail() || null }, "Messages on their way").catch(() => {});
   }
 
   usePrimary(ctx, !req
@@ -198,6 +213,7 @@ export default function Request({ ctx }: { ctx: StageCtx }) {
           <p>Choose how to reach each one - email, an AI phone call or WhatsApp - and send from here. Only your brief is shared; photos are checked for anything personal first.</p>
         </div>
       </div>
+      <EmailBar owner={owner} connected={st?.email_address || null} />
       {st && (!st.email || !st.calls || !owner) && (
         <div className="label-banner ink">
           <ShieldCheck />
@@ -211,6 +227,35 @@ export default function Request({ ctx }: { ctx: StageCtx }) {
       <ProgressStrip lines={lines} busy={!!busy} />
       {req.recipients.map((r) => <RecipientCard wa={wa} key={r.entry_id} ctx={ctx} req={req} r={r} owner={owner} />)}
       {req.ref && <div className="tiny muted">Reference {req.ref} - replies to these emails are read and checked automatically.</div>}
+    </div>
+  );
+}
+
+
+/** Every sender is asked for their own email: replies come back to them. The owner's device sends from the
+ *  connected inbox; anyone else's emails open in their own Gmail, ready to send. */
+function EmailBar({ owner, connected }: { owner: boolean; connected: string | null }) {
+  const [v, setV] = useState(userEmail());
+  const [edit, setEdit] = useState(!userEmail() && !owner);
+  const save = () => { setUserEmail(v); setEdit(false); };
+  return (
+    <div className="email-bar well">
+      <Mail size={15} />
+      {edit ? (
+        <>
+          <span className="small">Your Gmail address</span>
+          <input className="input sm" style={{ maxWidth: 260 }} type="email" placeholder="you@gmail.com" value={v} onChange={(e) => setV(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && save()} />
+          <button className="btn sm" onClick={save} disabled={!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)}><Check size={13} /> Save</button>
+          <span className="tiny muted">{owner ? "Replies are copied to you." : "Emails open in your Gmail, ready to send; replies come to you."}</span>
+        </>
+      ) : (
+        <>
+          <span className="small grow">{owner && connected ? <>Sent from your connected inbox <b>{connected}</b>{v ? <> · replies copied to <b>{v}</b></> : null}</>
+            : v ? <>Emails open in your Gmail (<b>{v}</b>), ready to send</> : "Add your email so replies come to you"}</span>
+          <button className="btn sm ghost" onClick={() => setEdit(true)}><Pencil size={12} /> {v ? "Change" : "Add"}</button>
+        </>
+      )}
     </div>
   );
 }

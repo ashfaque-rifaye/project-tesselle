@@ -27,7 +27,7 @@ function OfferCard({ e, onChoose, onTry, inCart }: { e: RouteEntry; onChoose: ()
         <span className="fit"><FitRing met={met} total={e.checks.length} tone={tone} /></span>
       </div>
       <div className="body">
-        <div className="row" style={{ gap: 6 }}>{storeLogo(e)}<span className="tiny muted">{e.seller_name}</span><div className="grow" /><StockChip stock={e.stock} /></div>
+        <div className="row" style={{ gap: 6 }}>{storeLogo(e)}<span className="tiny muted">{e.seller_name}</span><div className="grow" />{e.item && <span className="chip volt" style={{ margin: 0 }}>{e.item}</span>}<StockChip stock={e.stock} /></div>
         <div className="row between" style={{ alignItems: "flex-start" }}>
           <div className="name clamp2">{e.name}</div>
           <div className="price">{e.price_inr ? inr(e.price_inr) : "See price"}</div>
@@ -112,6 +112,7 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
   const no = buy.filter((e) => e.verdict === "not_suitable");
   const makers = entries.filter((e) => e.route === "make");
   const best = buy.find((e) => e.verdict === "meets");
+  const items = [...new Set(buy.map((e) => e.item).filter(Boolean))] as string[];
 
   // Once options are found, style them into a shoppable picture by itself (once per search).
   useEffect(() => {
@@ -197,7 +198,19 @@ export default function Routes({ ctx }: { ctx: StageCtx }) {
 
           <div className="group-head"><h3>Available now</h3><span className="chip muted">{good.length}</span></div>
           {good.length ? (
-            <div className="offer-grid">{good.map((e) => <OfferCard key={e.item_id} e={e} inCart={inCart(e.item_id)} onChoose={() => addPick(e.item_id)} onTry={() => onTry(e.item_id)} />)}</div>
+            items.length > 1 ? (
+              <div className="col" style={{ gap: 16 }}>
+                {items.map((it) => {
+                  const mine = good.filter((e) => e.item === it);
+                  return (
+                    <div key={it} className="col" style={{ gap: 8 }}>
+                      <div className="row" style={{ gap: 8 }}><span className="chip volt">{it}</span><span className="tiny muted">{mine.length ? `${mine.length} that fit` : "Nothing ready-made fits yet - ask a maker"}</span></div>
+                      {mine.length > 0 && <div className="offer-grid">{mine.map((e) => <OfferCard key={e.item_id} e={e} inCart={inCart(e.item_id)} onChoose={() => addPick(e.item_id)} onTry={() => onTry(e.item_id)} />)}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <div className="offer-grid">{good.map((e) => <OfferCard key={e.item_id} e={e} inCart={inCart(e.item_id)} onChoose={() => addPick(e.item_id)} onTry={() => onTry(e.item_id)} />)}</div>
           ) : <div className="small muted">Nothing in stock fits your must-haves right now.</div>}
           <input ref={spaceInput} type="file" accept="image/*" hidden onChange={(ev) => { const f = ev.target.files?.[0]; if (f && tryFor) tryInSpace(tryFor, f); ev.target.value = ""; }} />
 

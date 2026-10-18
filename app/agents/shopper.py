@@ -678,7 +678,62 @@ def _attr_keys(b: Brief) -> str:
 # ---- Public API ----------------------------------------------------------------------------------
 
 
+class SplitItem(BaseModel):
+    name: str = Field(description="Short product name, e.g. 'Study desk'.")
+    requirement_ids: list[str] = Field(description="Ids of the brief requirements that apply to this product (shared ones may repeat).")
+
+
+class ItemSplit(BaseModel):
+    items: list[SplitItem] = Field(default_factory=list, description="Empty unless the brief asks for 2+ different products bought separately.")
+
+
+async def split_items(b: Brief) -> list[tuple[str, Brief]]:
+    """A brief can ask for several different things ("a desk and a pegboard", "a blouse and matching bangles").
+    Each is searched on its own and checked only against the requirements that apply to it."""
+    if len(b.requirements) < 2:
+        return []
+    try:
+        out, _ = await asyncio.wait_for(gemini.generate_structured(ItemSplit, [
+            "Does this shopping brief ask for two or more DIFFERENT products that would be bought as separate items "
+            "(e.g. a desk and a pegboard)? If so, list each product with the ids of the requirements that apply to it - shared "
+            "ones such as colour or budget style may apply to several. A single product, a set sold together, or one product "
+            "with features is NOT several products: return no items.",
+            "Brief:\n" + b.model_dump_json(include={"title", "purpose", "requirements"}),
+        ], purpose="item-split", fast=True), 9)
+    except Exception as e:
+        log.info("item split skipped: %s", e)
+        return []
+    if len(out.items) < 2:
+        return []
+    ids = {r.id for r in b.requirements}
+    subs = []
+    for it in out.items[:3]:
+        reqs = [r for r in b.requirements if r.id in set(it.requirement_ids) & ids]
+        subs.append((it.name, b.model_copy(update={"title": it.name, "purpose": f"{it.name} - part of: {b.title}. {b.purpose}",
+                                                  "requirements": reqs})))
+    return subs
+
+
 async def find_listings(b: Brief, region: str) -> dict[str, Any]:
+    subs = await split_items(b)
+    if not subs:
+        return await _find_listings_one(b, region)
+    outs = await asyncio.gather(*(_find_listings_one(sub, region) for _, sub in subs), return_exceptions=True)
+    entries, sources, stats = [], [], []
+    for (name, _), out in zip(subs, outs):
+        if isinstance(out, Exception):
+            log.warning("search for %s failed: %s", name, out)
+            continue
+        for e in out["entries"]:
+            e["item"] = name
+            e["description"] = f"{name}: {e.get('description') or ''}".strip()
+        entries += out["entries"]
+        sources += [s for s in out["sources"] if s not in sources]
+        stats += out["stats"]
+    return {"entries": entries, "sources": sources, "stats": stats, "items": [n for n, _ in subs]}
+
+
+async def _find_listings_one(b: Brief, region: str) -> dict[str, Any]:
     city = region or "India"
     want = f"They want: {b.title}. {b.purpose}\nMust-haves: {_musts(b)}\nNice to have: {_flex(b)}\nBudget: {_budget(b)}\n"
     fmt = ("List up to 8 specific listings that are available now, closest to the must-haves first. One line each, exactly:\n"

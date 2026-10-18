@@ -103,7 +103,7 @@ def _mask(addr: Optional[str]) -> Optional[str]:
 # ---- Email ------------------------------------------------------------------------------------
 
 
-async def send_email(to: str, subject: str, body: str, attachments: list[tuple[str, bytes, str]]) -> str:
+async def send_email(to: str, subject: str, body: str, attachments: list[tuple[str, bytes, str]], reply_to: Optional[str] = None) -> str:
     """Send from the connected inbox (Gmail SMTP with an app password). Returns the Message-ID."""
     cfg = await _json_secret("tesselle-mail")
     if not cfg:
@@ -111,6 +111,9 @@ async def send_email(to: str, subject: str, body: str, attachments: list[tuple[s
     msg = EmailMessage()
     msg["From"] = email.utils.formataddr((cfg.get("name") or "Tesselle shopping agent", cfg["address"]))
     msg["To"] = to
+    if reply_to and reply_to.lower() != cfg["address"].lower():
+        msg["Reply-To"] = reply_to
+        msg["Cc"] = reply_to
     msg["Subject"] = subject
     mid = email.utils.make_msgid(domain="tesselle.agent")
     msg["Message-ID"] = mid
@@ -208,14 +211,27 @@ async def start_call(to: str, call_id: str, base_url: str) -> str:
     cfg = await twilio()
     if not cfg:
         raise RuntimeError("Calling isn't connected yet.")
+    acct = f"https://api.twilio.com/2010-04-01/Accounts/{cfg['account_sid']}"
     async with httpx.AsyncClient(timeout=15, auth=(cfg["account_sid"], cfg["auth_token"])) as h:
-        r = await h.post(f"https://api.twilio.com/2010-04-01/Accounts/{cfg['account_sid']}/Calls.json", data={
-            "To": to, "From": cfg["from_number"], "Url": f"{base_url}/api/calls/{call_id}/voice", "Method": "POST",
-            "StatusCallback": f"{base_url}/api/calls/{call_id}/status", "StatusCallbackMethod": "POST",
-            "StatusCallbackEvent": "completed", "Timeout": "30",
-        })
+        async def dial(caller: str) -> httpx.Response:
+            return await h.post(f"{acct}/Calls.json", data={
+                "To": to, "From": caller, "Url": f"{base_url}/api/calls/{call_id}/voice", "Method": "POST",
+                "StatusCallback": f"{base_url}/api/calls/{call_id}/status", "StatusCallbackMethod": "POST",
+                "StatusCallbackEvent": "completed", "Timeout": "30",
+            })
+
+        r = await dial(cfg["from_number"])
+        if r.status_code >= 300 and re.search(r"caller ID|From number|do-not-originate", r.text, re.I):
+            # Some caller IDs can't be used (Indian mobiles can't be presented through Twilio): use the account's own number.
+            nums = (await h.get(f"{acct}/IncomingPhoneNumbers.json")).json().get("incoming_phone_numbers", [])
+            voice = [n["phone_number"] for n in nums if (n.get("capabilities") or {}).get("voice")]
+            if voice:
+                r = await dial(voice[0])
     if r.status_code >= 300:
-        raise RuntimeError(f"Twilio refused the call: {r.json().get('message', r.text)[:200]}")
+        msg = r.json().get("message", r.text)[:200]
+        if "do-not-originate" in msg or "caller ID" in msg:
+            msg = "this caller ID can't be used - add a Twilio phone number to the account (a trial includes one free)"
+        raise RuntimeError(f"Twilio refused the call: {msg}")
     return r.json()["sid"]
 
 
@@ -234,8 +250,9 @@ async def send_whatsapp(to: str, body: str, media_urls: list[str]) -> str:
     if not cfg or not cfg.get("whatsapp_from"):
         raise RuntimeError("WhatsApp sending isn't connected yet.")
     sender = cfg["whatsapp_from"] if cfg["whatsapp_from"].startswith("whatsapp:") else "whatsapp:" + cfg["whatsapp_from"]
-    data: list[tuple[str, str]] = [("To", "whatsapp:" + to), ("From", sender), ("Body", body[:1500])]
-    data += [("MediaUrl", u) for u in media_urls[:5]]
+    data: dict[str, Any] = {"To": "whatsapp:" + to, "From": sender, "Body": body[:1500]}
+    if media_urls:
+        data["MediaUrl"] = media_urls[:5]
     async with httpx.AsyncClient(timeout=20, auth=(cfg["account_sid"], cfg["auth_token"])) as h:
         r = await h.post(f"https://api.twilio.com/2010-04-01/Accounts/{cfg['account_sid']}/Messages.json", data=data)
     if r.status_code >= 300:

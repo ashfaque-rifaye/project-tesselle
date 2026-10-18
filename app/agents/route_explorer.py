@@ -75,7 +75,7 @@ async def advisor(node_input: dict, brief: dict) -> dict[str, Any]:
             errors.append(out["error"])
     compact = [
         {"item_id": e["item_id"], "route": e["route"], "name": e["name"], "seller": e["seller_name"], "verdict": e["verdict"],
-         "decisive": e["decisive"], "price_inr": e["price_inr"], "stock": e["stock"]}
+         "decisive": e["decisive"], "price_inr": e["price_inr"], "stock": e["stock"], "for": e.get("item")}
         for e in entries
     ]
     try:

@@ -80,6 +80,8 @@ async def budget_error(_: Request, exc: gemini.BudgetExceeded):
 
 
 PUBLIC_API = os.environ.get("TESSELLE_PUBLIC_API", "https://tesselle-448771854429.asia-southeast1.run.app")
+# Webhooks may be pointed at the Cloud Run address or the Firebase Hosting site (which forwards /api to it).
+PUBLIC_BASES = (PUBLIC_API, "https://project-tesselle.web.app", "https://project-tesselle.firebaseapp.com")
 
 
 def _ndjson(gen: AsyncIterator[dict[str, Any]], pid: Optional[str] = None, label: str = "") -> StreamingResponse:
@@ -686,19 +688,22 @@ async def update_recipient(pid: str, rid: str, eid: str, patch: services.Recipie
 
 class SendBody(BaseModel):
     via_device: bool = False
+    reply_to: Optional[str] = None
     entry_ids: Optional[list[str]] = None
 
 
 @app.post("/api/projects/{pid}/requests/{rid}/send")
 async def send_outreach(pid: str, rid: str, body: SendBody, x_owner_key: Optional[str] = Header(None)):
     req = await store.get(pid, "requests", rid)
-    if req and any(r.get("channel") in ("email", "call") for r in req["recipients"] if not body.entry_ids or r["entry_id"] in body.entry_ids):
+    picked = [r for r in (req or {}).get("recipients", []) if not body.entry_ids or r["entry_id"] in body.entry_ids]
+    if any(r.get("channel") == "call" for r in picked) or (not body.via_device and any(r.get("channel") == "email" for r in picked)):
         await _owner(x_owner_key)
 
     wa_ok = not body.via_device and await channels.is_owner(x_owner_key)
 
     async def gen():
-        async for ev in services.send_outreach(pid, rid, body.entry_ids, PUBLIC_API, wa_ok=wa_ok):
+        async for ev in services.send_outreach(pid, rid, body.entry_ids, PUBLIC_API, wa_ok=wa_ok, device=body.via_device,
+                                               reply_to=body.reply_to):
             if ev["type"] == "result":
                 yield {"type": "result", "state": await _state(pid)}
             else:
@@ -776,7 +781,8 @@ async def call_stream(ws: WebSocket, cid: str):
 async def whatsapp_inbound(request: Request):
     """A seller's WhatsApp reply: matched to the project by their number and read like any other reply."""
     form = {k: str(v) for k, v in (await request.form()).items()}
-    if not await channels.valid_signature(f"{PUBLIC_API}/api/whatsapp/inbound", form, request.headers.get("X-Twilio-Signature", "")):
+    sig = request.headers.get("X-Twilio-Signature", "")
+    if not any([await channels.valid_signature(f"{base}/api/whatsapp/inbound", form, sig) for base in PUBLIC_BASES]):
         raise HTTPException(403, "Bad signature")
     num = form.get("From", "").replace("whatsapp:", "").lstrip("+")
     idx = await store.db().collection("wa_index").document(num).get()

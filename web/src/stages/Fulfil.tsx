@@ -95,12 +95,29 @@ function OrderCard({ o, ctx }: { o: Order; ctx: StageCtx }) {
         {conf?.tracking_url && <a className="btn sm ghost" href={conf.tracking_url} target="_blank" rel="noreferrer"><Truck size={14} /> Track</a>}
         <div className="grow" />
         {o.status !== "cancelled" && (step === "ordered" || step === "delivered") && (
-          <button className="btn sm ghost" disabled={!!busy} onClick={() => confirm_cancel(ctx, o)}><Undo2 size={13} /> Changed my mind</button>
+          <>
+            {conf && storeOrdersUrl(o) && <a className="btn sm ghost" href={storeOrdersUrl(o)!} target="_blank" rel="noreferrer"><ArrowUpRight size={13} /> Cancel on {o.seller_name}</a>}
+            <button className="btn sm ghost" disabled={!!busy} onClick={() => confirm_cancel(ctx, o)}><Undo2 size={13} /> Changed my mind</button>
+          </>
         )}
       </div>
     </div>
   );
 }
+
+/** Where a placed order is cancelled on the store itself (Tesselle never signs in to your store account). */
+const STORE_ORDERS: [RegExp, string][] = [
+  [/amazon\.in/, "https://www.amazon.in/gp/css/order-history"],
+  [/flipkart\.com/, "https://www.flipkart.com/account/orders"],
+  [/myntra\.com/, "https://www.myntra.com/my/orders"],
+  [/ikea\.com/, "https://www.ikea.com/in/en/purchases/"],
+  [/nykaa\.com/, "https://www.nykaa.com/sales/order/history"],
+  [/ajio\.com/, "https://www.ajio.com/my-account/orders"],
+];
+const storeOrdersUrl = (o: Order) => {
+  const host = (() => { try { return new URL(o.url || o.checkout?.url || "").hostname; } catch { return o.seller_id || ""; } })();
+  return STORE_ORDERS.find(([rx]) => rx.test(host))?.[1] || null;
+};
 
 function confirm_cancel(ctx: StageCtx, o: Order) {
   if (!window.confirm(`Cancel ${o.title}? If you already paid, cancel it on ${o.seller_name} too.`)) return;

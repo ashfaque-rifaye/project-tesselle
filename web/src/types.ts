@@ -85,6 +85,8 @@ export interface Contact {
 
 export interface RouteEntry {
   item_id: string;
+  item?: string | null;
+  complement?: boolean;
   route: "buy" | "make";
   name: string;
   description: string;
