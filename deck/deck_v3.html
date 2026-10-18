@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Mindflayer - Tesselle - AI Builder Cup Submission</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  @page { size: 1600px 900px; margin: 0; }
+  :root { --ink:#f2f6f4; --ink2:#cdd9d6; --muted:#92a6a4; --faint:#677b7d; --edge:rgba(255,255,255,.12); --volt:#d7ff3c; --volt-ink:#10170a;
+          --green:#30d158; --amber:#ff9f0a; --red:#ff453a; --sky:#64d2ff; --frost:rgba(238,245,242,.92); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0a1416; font-family: Inter, sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide { width: 1600px; height: 900px; position: relative; overflow: hidden; page-break-after: always; padding: 76px 96px; background: #0b1618; }
+  .slide > .bg { position: absolute; inset: 0; z-index: 0; background: url("img/bg-blur.jpg") center / cover; }
+  .slide > .bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 50% at 85% 85%, rgba(255,179,92,.12), transparent 70%), radial-gradient(50% 50% at 10% 0%, rgba(169,189,185,.16), transparent 70%); }
+  .slide > *:not(.bg):not(.photo):not(.foot):not(.rim) { position: relative; z-index: 2; }
+  .slide > .photo { position: absolute; inset: 18px; z-index: 0; border-radius: 34px; overflow: hidden; }
+  .slide > .photo img { width: 100%; height: 100%; object-fit: cover; }
+  .slide > .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,12,14,.78), rgba(5,12,14,.2) 55%, rgba(5,12,14,.05)), linear-gradient(180deg, transparent 55%, rgba(5,12,14,.6)); }
+  .slide > .rim { position: absolute; inset: 34px; border-radius: 26px; border: 1px solid rgba(255,255,255,.3); z-index: 1; }
+  .k { display: inline-flex; align-items: center; gap: 10px; height: 38px; padding: 0 18px 0 14px; border-radius: 999px; font-family: 'Geist Mono', monospace; font-size: 14px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink2); background: rgba(255,255,255,.08); border: 1px solid var(--edge); }
+  .k::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 12px var(--volt); }
+  h1 { font-family: 'Inter Tight', sans-serif; font-weight: 400; font-size: 120px; line-height: .93; letter-spacing: -0.055em; margin: 26px 0 0; }
+  h1 .soft, h2 .soft { color: rgba(242,246,244,.5); font-weight: 300; }
+  h2 { font-family: 'Inter Tight', sans-serif; font-weight: 400; font-size: 64px; line-height: 1.02; letter-spacing: -0.045em; margin: 22px 0 0; max-width: 1300px; }
+  h3 { font-family: 'Inter Tight', sans-serif; font-size: 27px; margin: 0; font-weight: 500; letter-spacing: -0.025em; }
+  p, li { font-size: 21px; line-height: 1.52; color: var(--ink2); }
+  .v { color: var(--volt); }
+  .muted { color: var(--muted); }
+  .mono { font-family: 'Geist Mono', monospace; }
+  .glass { position: relative; background: linear-gradient(160deg, rgba(255,255,255,.1), rgba(255,255,255,.03) 45%, rgba(255,255,255,.05)), rgba(22,38,42,.55); border: 1px solid var(--edge); border-radius: 30px; padding: 28px; box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 30px 70px -36px rgba(0,0,0,.8); }
+  .frost { background: var(--frost); color: #0b1618; border-radius: 30px; padding: 26px; box-shadow: 0 30px 70px -36px rgba(0,0,0,.8); }
+  .frost p { color: #3d4f4c; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid3 { display:grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+  .grid4 { display:grid; grid-template-columns: repeat(4,1fr); gap: 18px; }
+  .chip { display:inline-flex; align-items:center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge); background: rgba(255,255,255,.07); color: var(--ink2); font-size: 16px; font-weight: 550; margin: 0 8px 10px 0; }
+  .chip.g { color:#8af3a6; border-color: rgba(48,209,88,.35); background: rgba(48,209,88,.14); }
+  .chip.r { color:#ff8f86; border-color: rgba(255,69,58,.45); background: rgba(255,69,58,.15); }
+  .chip.a { color:#ffc56e; border-color: rgba(255,159,10,.4); background: rgba(255,159,10,.14); }
+  .chip.vt { color: var(--volt); border-color: rgba(215,255,60,.4); background: rgba(215,255,60,.12); }
+  .pill { display:inline-flex; align-items:center; gap: 10px; height: 54px; padding: 0 26px; border-radius: 999px; background: var(--volt); color: var(--volt-ink); font-weight: 650; font-size: 20px; box-shadow: 0 14px 40px -14px rgba(215,255,60,.6); }
+  .mac { border-radius: 18px; overflow: hidden; border: 1px solid rgba(255,255,255,.16); background: #0a1214; box-shadow: 0 40px 100px -40px rgba(0,0,0,.95); }
+  .mac .bar { height: 30px; display:flex; align-items:center; gap: 7px; padding: 0 12px; background: rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.07); }
+  .mac .bar i { width: 11px; height: 11px; border-radius: 50%; background:#ff5f57; } .mac .bar i:nth-child(2){background:#febc2e} .mac .bar i:nth-child(3){background:#28c840}
+  .mac img { display:block; width: 100%; }
+  .glyph { font-family: 'Inter Tight'; font-size: 64px; font-weight: 300; letter-spacing: -0.04em; color: var(--volt); line-height: 1; margin-bottom: 18px; }
+  .foot { position:absolute; left:96px; right:96px; bottom: 34px; display:flex; justify-content:space-between; font-family:'Geist Mono'; font-size: 12.5px; letter-spacing:.16em; color: var(--muted); text-transform: uppercase; z-index: 3; }
+  .logo { display:flex; align-items:center; gap: 14px; }
+  .logo img { width: 52px; height: 52px; }
+  .logo b { font-family:'Inter Tight'; font-size: 30px; font-weight: 600; letter-spacing: -.03em; }
+  .logo span { display:block; font-family: 'Geist Mono'; font-size: 11px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+  .sbs { display:grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; }
+  .vs { width: 40px; height: 40px; border-radius: 50%; display:grid; place-items:center; background: rgba(255,255,255,.08); font-family:'Geist Mono'; font-size: 12px; color: var(--muted); }
+  .cell { border-radius: 20px; padding: 16px 20px; border:1px solid var(--edge); background: rgba(4,10,12,.45); }
+  .cell .kk { font-family:'Geist Mono'; font-size: 12.5px; letter-spacing:.14em; color: var(--muted); text-transform: uppercase; }
+  .cell .vv { font-family:'Inter Tight'; font-size: 34px; font-weight: 500; letter-spacing: -.035em; margin-top: 4px; }
+  .keep { border-color: rgba(215,255,60,.55); background: linear-gradient(160deg, rgba(215,255,60,.14), rgba(4,10,12,.45)); } .keep .kk { color: var(--volt); }
+  .prop { border: 1.5px dashed rgba(255,69,58,.7); } .prop .vv { text-decoration: line-through; text-decoration-color: rgba(255,69,58,.8); text-decoration-thickness: 3px; }
+  ul { margin: 10px 0 0; padding: 0; list-style: none; }
+  li { margin: 0 0 14px; padding-left: 40px; position: relative; }
+  li::before { content: ""; position: absolute; left: 0; top: 7px; width: 22px; height: 22px; border-radius: 50%; background: var(--volt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310170a' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 14px no-repeat; }
+  .arch { display:grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 20px; align-items: stretch; margin-top: 34px; }
+  .box h4 { margin: 0 0 10px; font-family:'Geist Mono'; font-size: 13px; letter-spacing:.16em; text-transform: uppercase; color: var(--volt); font-weight: 500; }
+  .box div { font-size: 18px; color: var(--ink2); line-height: 1.6; }
+  .track { position: relative; display: flex; flex-direction: column; gap: 44px; }
+  .track::before { content: ""; position: absolute; left: 24px; top: 22px; bottom: 22px; width: 3px; border-radius: 3px; background: linear-gradient(var(--volt), rgba(215,255,60,.45)); box-shadow: 0 0 14px rgba(215,255,60,.5); }
+  .beat { display:grid; grid-template-columns: 50px 1fr; gap: 18px; align-items: center; position: relative; }
+  .beat .n { width: 50px; height: 50px; border-radius: 50%; display:grid; place-items:center; font-family:'Geist Mono'; font-weight:600; color: var(--volt-ink); background: var(--volt); font-size: 15px; box-shadow: 0 0 0 5px rgba(215,255,60,.14); }
+  .beat b { font-size: 27px; font-weight: 600; letter-spacing: -.01em; }
+  .beat span { display:block; color: var(--muted); font-size: 20px; margin-top: 2px; }
+  .shot { display:block; width: 100%; border-radius: 22px; border: 1px solid rgba(255,255,255,.16); box-shadow: 0 30px 80px -34px rgba(0,0,0,.95); object-fit: cover; object-position: top; }
+  .stat { font-family: 'Inter Tight'; font-size: 74px; font-weight: 300; letter-spacing: -.05em; line-height: 1; }
+  .stat small { font-size: 34px; color: var(--muted); }
+  .route { position: relative; height: 14px; border-radius: 14px; background: rgba(255,255,255,.1); margin: 26px 0 30px; }
+  .route i { position: absolute; left: 0; top: 0; bottom: 0; width: 26%; border-radius: inherit; background: linear-gradient(90deg, #ffb35c, var(--volt)); box-shadow: 0 0 18px rgba(215,255,60,.55); }
+  .route b { position: absolute; left: 26%; top: 50%; width: 30px; height: 30px; margin-left: -15px; transform: translateY(-50%); border-radius: 50%; background: #fff; box-shadow: 0 0 0 7px rgba(215,255,60,.25); }
+
+  .slide.tpl { padding-top: 128px; }
+  .slide > .hdr { position: absolute !important; left: 0; top: 0; width: 1600px; height: auto; z-index: 4 !important; }
+  .tdl { display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: baseline; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.1); }
+  .tdl span { font-family: 'Geist Mono', monospace; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .tdl b { font-family: 'Inter Tight'; font-size: 28px; font-weight: 500; letter-spacing: -.02em; }
+  .feat { padding: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .feat b { font-family: 'Inter Tight'; font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+  .feat b::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 10px var(--volt); margin-right: 10px; vertical-align: middle; }
+  .feat span { font-size: 16px; line-height: 1.45; color: var(--ink2); }
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .flow .node { flex: 1; border-radius: 22px; padding: 18px 20px; border: 1px solid var(--edge); background: linear-gradient(160deg, rgba(255,255,255,.1), rgba(255,255,255,.03)), rgba(22,38,42,.6); display: flex; flex-direction: column; gap: 4px; }
+  .flow .node.v { border-color: rgba(215,255,60,.55); background: linear-gradient(160deg, rgba(215,255,60,.16), rgba(18,32,36,.6)); }
+  .flow .node small { font-family: 'Geist Mono'; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--volt); }
+  .flow .node b { font-family: 'Inter Tight'; font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+  .flow .node span { font-size: 16px; color: var(--muted); }
+  .flow .arr { width: 46px; flex: none; position: relative; }
+  .flow .arr::before { content: ""; position: absolute; left: 8px; right: 12px; top: 50%; height: 2px; background: linear-gradient(90deg, rgba(215,255,60,.3), var(--volt)); }
+  .flow .arr::after { content: ""; position: absolute; right: 8px; top: calc(50% - 6px); border-left: 10px solid var(--volt); border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+  .flow.sm .node { padding: 14px 16px; } .flow.sm .node b { font-size: 20px; } .flow.sm .node span { font-size: 15px; }
+  .lane { border-radius: 26px; padding: 16px; border: 1px dashed rgba(255,255,255,.18); background: rgba(4,10,12,.25); }
+  .lane-k { font-family: 'Geist Mono'; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink2); margin: 0 0 12px 4px; }
+  .archd { display: grid; grid-template-columns: 1fr 130px 1.45fr 130px 1fr; align-items: stretch; }
+  .archd .col { display: flex; flex-direction: column; gap: 14px; justify-content: center; }
+  .archd .ab { padding: 18px 20px; } .archd .ab.sm { padding: 14px 16px; }
+  .archd .ab h4 { margin: 0 0 6px; font-family: 'Geist Mono'; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--volt); font-weight: 500; }
+  .archd .ab div { font-size: 16.5px; line-height: 1.5; color: var(--ink2); }
+  .archd .ab.ext { border-style: dashed; }
+  .archd .link { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .archd .link::before { content: ""; position: absolute; left: 6px; right: 6px; top: 50%; height: 2px; background: linear-gradient(90deg, var(--volt), rgba(215,255,60,.35), var(--volt)); box-shadow: 0 0 10px rgba(215,255,60,.5); }
+  .archd .link span { position: relative; z-index: 1; line-height: 1.6; max-width: 92px; font-family: 'Geist Mono'; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); text-align: center; background: #13262a; border: 1px solid var(--edge); border-radius: 12px; padding: 6px 8px; }
+  .ct { width: 100%; border-collapse: collapse; font-size: 19px; }
+  .ct th { text-align: left; font-family: 'Geist Mono'; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--volt); font-weight: 500; padding: 0 0 12px; }
+  .ct th:last-child, .ct td:last-child { text-align: right; white-space: nowrap; }
+  .ct td { padding: 11px 0; border-top: 1px solid rgba(255,255,255,.1); color: var(--ink2); }
+  .ct tr.tot td { color: var(--ink); font-weight: 600; font-size: 22px; border-top: 1px solid rgba(215,255,60,.5); }
+  .snaps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
+  .snaps figure { margin: 0; border-radius: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,.14); background: rgba(4,10,12,.5); box-shadow: 0 24px 60px -30px rgba(0,0,0,.9); }
+  .snaps img { display: block; width: 100%; height: 262px; object-fit: cover; object-position: center top; }
+  .snaps figcaption { padding: 10px 14px; font-size: 16px; color: var(--ink2); }
+  .perf { padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .perf .stat { font-size: 54px; } .perf span { font-size: 16.5px; line-height: 1.45; color: var(--ink2); }
+  .lnk { padding: 20px 24px; display: flex; flex-direction: column; gap: 6px; }
+  .lnk span { font-family: 'Geist Mono'; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .lnk b { font-family: 'Inter Tight'; font-size: 30px; font-weight: 500; letter-spacing: -.02em; }
+  .lnk small { font-size: 15px; color: var(--muted); }
+  .lnk a { color: inherit; text-decoration: none; }
+  .guide { margin: 12px 0 0; padding-left: 22px; } .guide li { font-size: 17.5px; line-height: 1.45; padding-left: 4px; margin-bottom: 8px; color: var(--ink2); list-style: decimal; }
+  .guide li::before { display: none; }
+</style>
+</head>
+<body>
+
+<!-- 1 Team details (template slide 1) -->
+<section class="slide" style="padding: 0">
+  <div class="photo" style="inset: 0; border-radius: 0"><img src="img/hero-deck.jpg" /></div>
+  <img src="img/tpl_banner.png" style="position:absolute; left:0; top:0; width:1600px; height:auto; z-index:2" />
+  <div style="position:absolute; left: 96px; top: 520px; right: 96px; display:grid; grid-template-columns: 1fr 1fr; gap: 26px; z-index: 3">
+    <div class="glass" style="padding: 26px 30px; background: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.04)), rgba(10,22,24,.72)">
+      <div class="k" style="margin-bottom: 16px">Team details</div>
+      <div class="tdl"><span>Team name</span><b>Mindflayer</b></div>
+      <div class="tdl"><span>Team leader</span><b>Ashfaque Rifaye</b></div>
+      <div class="tdl"><span>Team members</span><b>Ashfaque Rifaye · Vasanth Kumar</b></div>
+    </div>
+    <div class="glass" style="padding: 26px 30px; background: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.04)), rgba(10,22,24,.72)">
+      <div class="k" style="margin-bottom: 16px">Problem statement</div>
+      <p style="margin:0; font-size: 21px; color: var(--ink)"><b class="v">Retail &amp; Commerce</b> - intelligent customer and business experiences: conversational shopping that turns <i>"I need something that fits"</i> into the right product or a custom order, from real stores and real makers.</p>
+      <div class="logo" style="margin-top: 16px"><img src="../web/public/favicon.svg" style="width:40px;height:40px" /><div><b style="font-size:24px">Tesselle</b><span>One agent for everything that has to fit</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 Brief about the idea -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Brief about the idea</div>
+  <h2 style="font-size: 60px">One agent for everything <span class="soft">that has to fit.</span></h2>
+  <div class="grid2" style="margin-top: 24px; align-items: center; grid-template-columns: .85fr 1.15fr">
+    <div style="display:flex; flex-direction:column; gap: 14px">
+      <div class="glass" style="padding: 22px"><p style="margin:0; color: var(--ink); font-size: 19px">Tesselle is a voice-first shopping agent for things where fit matters - a desk organiser for a cramped desk, a blouse by Friday, 500 printed bags for an event.</p></div>
+      <div class="glass" style="padding: 22px"><p style="margin:0; font-size: 19px">You <b style="color:var(--ink)">say it, show it, or look at it</b> through smart glasses. Gemini writes the brief and the facts that decide fit, <b style="color:var(--ink)">draws ideas into your own photo</b>, finds real products in stores that deliver to your PIN, <b style="color:var(--ink)">phones and emails real makers</b>, and fills the store cart with cash on delivery - you place the order.</p></div>
+      <div class="glass" style="padding: 22px"><p style="margin:0; font-size: 19px">Every step is checked against your must-haves, and laptop, phone and glasses stay in sync on one project.</p></div>
+    </div>
+    <div class="mac"><div class="bar"><i></i><i></i><i></i></div><img src="img/v2_cover.jpg" /></div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>02</span></div>
+</section>
+
+<!-- 3 Opportunities: the problem in numbers -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Opportunities · the problem in numbers</div>
+  <h2 style="font-size: 54px">The cost of guessing - <span class="soft">and the shift to agents.</span></h2>
+  <div class="grid3" style="margin-top: 24px; gap: 14px">
+    <div class="glass" style="padding: 20px"><div class="stat v" style="font-size: 62px">$890B</div><p style="margin: 8px 0 4px; color: var(--ink); font-size: 19px">of goods returned to US retailers in 2024</p><div class="mono muted" style="font-size: 12px; letter-spacing: .08em">NRF &amp; HAPPY RETURNS · DEC 2024</div></div>
+    <div class="glass" style="padding: 20px"><div class="stat v" style="font-size: 62px">~70%</div><p style="margin: 8px 0 4px; color: var(--ink); font-size: 19px">of online clothing returns cite size and fit</p><div class="mono muted" style="font-size: 12px; letter-spacing: .08em">CORESIGHT RESEARCH · 2026</div></div>
+    <div class="glass" style="padding: 20px"><div class="stat v" style="font-size: 62px">25–40%</div><p style="margin: 8px 0 4px; color: var(--ink); font-size: 19px">return rate in online fashion; size &amp; fit is the #1 driver</p><div class="mono muted" style="font-size: 12px; letter-spacing: .08em">ZALANDO RESEARCH · KDD 2021</div></div>
+    <div class="glass" style="padding: 20px"><div class="stat" style="font-size: 62px">$170–180B</div><p style="margin: 8px 0 4px; color: var(--ink); font-size: 19px">India e-retail by 2030, from $65–66B in 2025; 290–300M shoppers</p><div class="mono muted" style="font-size: 12px; letter-spacing: .08em">BAIN &amp; FLIPKART · HOW INDIA SHOPS ONLINE 2026</div></div>
+    <div class="glass" style="padding: 20px"><div class="stat" style="font-size: 62px">7.2 <small>crore</small></div><p style="margin: 8px 0 4px; color: var(--ink); font-size: 19px">registered MSMEs - the makers custom orders depend on</p><div class="mono muted" style="font-size: 12px; letter-spacing: .08em">MINISTRY OF MSME · LOK SABHA, DEC 2025</div></div>
+    <div class="frost" style="padding: 20px"><div class="stat" style="font-size: 62px; color:#0b1618">$3–5T</div><p style="margin: 8px 0 4px; font-size: 19px">global commerce AI agents could orchestrate by 2030; $1T in US retail</p><div class="mono" style="font-size: 12px; letter-spacing: .08em; color:#5b7a00">MCKINSEY · 2025</div></div>
+  </div>
+  <p style="margin-top: 18px; font-size: 19px; color: var(--ink); max-width: 1400px"><b class="v">Who benefits:</b> shoppers (fewer wrong buys and returns), India's makers and small sellers (qualified, structured orders), and stores (higher conversion, fewer returns).</p>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>03</span></div>
+</section>
+
+<!-- 4 Opportunities: different, how it solves, USP -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Opportunities</div>
+  <h2 style="font-size: 52px">Not a chatbot that suggests links - <span class="soft">an agent that does the job.</span></h2>
+  <div class="grid3" style="margin-top: 30px">
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">HOW IS IT DIFFERENT?</div><ul style="margin-top: 14px">
+      <li style="font-size: 19px">Shopping assistants recommend; Tesselle <b style="color:var(--ink)">acts</b> - calls makers, finds contacts, fills carts.</li>
+      <li style="font-size: 19px">It covers <b style="color:var(--ink)">ready-made and made-to-order</b> in one journey.</li>
+      <li style="font-size: 19px; margin-bottom:0">Ideas are drawn into <b style="color:var(--ink)">your own photo</b>, not a stock render.</li></ul></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">HOW DOES IT SOLVE IT?</div><ul style="margin-top: 14px">
+      <li style="font-size: 19px">Writes down <b style="color:var(--ink)">the facts that decide fit</b> and checks every option against them in code.</li>
+      <li style="font-size: 19px">Reaches makers <b style="color:var(--ink)">where they work</b> - phone, WhatsApp, email - and turns answers into quotes.</li>
+      <li style="font-size: 19px; margin-bottom:0">Works across glasses, laptop and phone, in sync.</li></ul></div>
+    <div class="glass" style="border-color: rgba(215,255,60,.45)"><div class="mono v" style="font-size:13px; letter-spacing:.16em">USP</div><ul style="margin-top: 14px">
+      <li style="font-size: 19px"><b style="color:var(--ink)">Fit as a contract:</b> must-haves never change without your yes.</li>
+      <li style="font-size: 19px"><b style="color:var(--ink)">A real-time AI phone agent</b> (Gemini Live) that gets quotes from offline makers.</li>
+      <li style="font-size: 19px; margin-bottom:0"><b style="color:var(--ink)">Steps planned per purchase</b> - a desk and 500 bags get different journeys.</li></ul></div>
+  </div>
+  <div class="grid2" style="margin-top: 20px; gap: 18px">
+    <div class="glass" style="padding: 18px 22px; display:flex; gap: 16px; align-items:center"><span class="chip" style="margin:0">Today</span><p style="margin:0; font-size: 18px">Search → twenty tabs → guess the size → message makers one by one → return what doesn't fit.</p></div>
+    <div class="frost" style="padding: 18px 22px; display:flex; gap: 16px; align-items:center"><span class="chip" style="margin:0; background: var(--volt); color: #0b1618; border-color: transparent">Tesselle</span><p style="margin:0; font-size: 18px">One sentence → checked options from real stores and makers → you approve the order or the quote.</p></div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>04</span></div>
+</section>
+
+<!-- 5 Features -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">List of features</div>
+  <h2 style="font-size: 56px">Everything from <span class="soft">"I need" to "it arrived".</span></h2>
+  <div class="grid4" style="margin-top: 30px; gap: 14px">
+    <div class="glass feat"><b>Real-time voice agent</b><span>Gemini Live drives the whole app; waits for you to finish; resumes where you left off</span></div>
+    <div class="glass feat"><b>MetaGlass mode</b><span>Simulated smart glasses: Gemini sees what you see, saves the view to the project</span></div>
+    <div class="glass feat"><b>Adaptive brief</b><span>Must-haves, fit facts and steps planned for each purchase; versioned, restorable</span></div>
+    <div class="glass feat"><b>Ideas in your photo</b><span>2–3 ideas drawn into your own photo, tagged with the products they need; redraw by voice</span></div>
+    <div class="glass feat"><b>Real-store search</b><span>Vertex AI Search over 45 Indian stores + Google Search grounding, PIN-aware</span></div>
+    <div class="glass feat"><b>Fit checker</b><span>Deterministic verdicts for every listing and quote; sellers can propose, only you approve</span></div>
+    <div class="glass feat"><b>Shop the look</b><span>Real products placed in your photo, each dot linked to its listing</span></div>
+    <div class="glass feat"><b>Checkout agent</b><span>Fills the store cart, sets the PIN, picks cash on delivery; you place it</span></div>
+    <div class="glass feat"><b>Contact finder</b><span>Reads each business's own site for its published email and phone</span></div>
+    <div class="glass feat"><b>AI phone calls</b><span>Gemini Live on a real phone line asks makers for size, price and lead time</span></div>
+    <div class="glass feat"><b>Email &amp; WhatsApp</b><span>Requests with privacy-scrubbed photos; replies read into checked quotes</span></div>
+    <div class="glass feat"><b>Devices in sync</b><span>Laptop, phone and glasses mirror step, scroll and agent activity live</span></div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>05</span></div>
+</section>
+
+<!-- 6 Process flow -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Process flow</div>
+  <h2 style="font-size: 52px">From a sentence <span class="soft">to a checked delivery.</span></h2>
+  <div class="flow" style="margin-top: 34px">
+    <div class="node"><small>You</small><b>Say · show · look</b><span>voice, photo, video, MetaGlass</span></div><div class="arr"></div>
+    <div class="node"><small>Brief writer</small><b>Brief + fit facts</b><span>steps planned for this purchase</span></div><div class="arr"></div>
+    <div class="node"><small>Design agent</small><b>Ideas in your photo</b><span>pick one, or redraw by voice</span></div><div class="arr"></div>
+    <div class="node v"><small>Shopping agent + maker scout</small><b>Real stores &amp; makers</b><span>every option fit-checked</span></div>
+  </div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-top: 26px">
+    <div class="lane"><div class="lane-k">Ready-made path</div><div class="flow sm">
+      <div class="node"><b>Shop the look</b><span>add picks</span></div><div class="arr"></div>
+      <div class="node"><b>Checkout agent</b><span>cart · PIN · COD</span></div><div class="arr"></div>
+      <div class="node"><b>You place it</b><span>on the store</span></div></div></div>
+    <div class="lane"><div class="lane-k">Made-to-order / bulk path</div><div class="flow sm">
+      <div class="node"><b>Contacts found</b><span>request written</span></div><div class="arr"></div>
+      <div class="node"><b>AI call · email</b><span>Gemini Live</span></div><div class="arr"></div>
+      <div class="node"><b>Quotes checked</b><span>you approve</span></div></div></div>
+  </div>
+  <div class="glass" style="margin-top: 22px; padding: 16px 24px; display:flex; gap: 18px; align-items:center"><span class="chip vt" style="margin:0">Then</span><p style="margin:0; font-size: 19px">Order tracked → a photo of what arrived is checked against the brief → accept or report. Any step can be driven by voice or one tap, on any device.</p></div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>06</span></div>
+</section>
+
+<!-- 7 Wireframes / mocks -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Wireframes / mock diagrams</div>
+  <h2 style="font-size: 52px">One project, <span class="soft">three screens.</span></h2>
+  <div class="grid2" style="margin-top: 26px; grid-template-columns: 1.3fr .7fr; align-items: center">
+    <img class="shot" src="img/v3_mock.jpg" style="height: 520px; object-fit: cover; object-position: center" />
+    <div style="display:flex; flex-direction:column; gap: 14px">
+      <div class="glass" style="padding: 20px"><h3>Laptop</h3><p style="margin: 6px 0 0; font-size: 18px">Step rail planned per purchase · the step in the centre · the brief on the right · one pinned next action · voice orb.</p></div>
+      <div class="glass" style="padding: 20px"><h3>Phone</h3><p style="margin: 6px 0 0; font-size: 18px">Same project as a step strip with a pinned action bar; follows the laptop's step and scroll live.</p></div>
+      <div class="glass" style="padding: 20px"><h3>MetaGlass</h3><p style="margin: 6px 0 0; font-size: 18px">Lens view with a heads-up card: what you said, what the agent did, the best fit so far.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>07</span></div>
+</section>
+
+<!-- 8 Architecture -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Architecture diagram</div>
+  <h2 style="font-size: 52px">Built end-to-end <span class="soft">on Google Cloud.</span></h2>
+  <div class="archd" style="margin-top: 26px">
+    <div class="col">
+      <div class="glass ab"><h4>Clients</h4><div>Laptop · Phone · MetaGlass<br/>React web app</div></div>
+      <div class="glass ab"><h4>Firebase Hosting</h4><div>CDN · forwards /api</div></div>
+      <div class="glass ab ext"><h4>Makers &amp; stores</h4><div>Twilio phone + WhatsApp<br/>Gmail · store pages</div></div>
+    </div>
+    <div class="link"><span>HTTPS · WebSockets<br/>voice · camera · calls</span></div>
+    <div class="col mid">
+      <div class="glass ab" style="border-color: rgba(215,255,60,.5); background: linear-gradient(160deg, rgba(215,255,60,.12), rgba(18,32,36,.6))"><h4>Cloud Run · FastAPI + Google ADK</h4><div>Voice assistant · brief writer &amp; planner · design agent · shopping agent · maker scout · outreach &amp; call agents · checkout agent<br/><b class="v">Fit checker - deterministic code</b><br/>Gemini Live bridge for mic and phone audio</div></div>
+      <div class="grid3" style="gap: 12px">
+        <div class="glass ab sm"><h4>Firestore</h4><div>briefs, options, calls, sync</div></div>
+        <div class="glass ab sm"><h4>Cloud Storage</h4><div>photos, ideas, recordings</div></div>
+        <div class="glass ab sm"><h4>Secret Manager</h4><div>keys &amp; credentials</div></div>
+      </div>
+    </div>
+    <div class="link"><span>Vertex AI<br/>one service identity</span></div>
+    <div class="col">
+      <div class="glass ab"><h4>Gemini on Vertex AI</h4><div>Gemini 3 Flash · Gemini Live native audio · Gemini image · Gemini TTS</div></div>
+      <div class="glass ab"><h4>Search</h4><div>Vertex AI Search (45 stores) · Grounding with Google Search</div></div>
+      <div class="glass ab"><h4>Agent Engine</h4><div>Sessions · Memory Bank</div></div>
+    </div>
+  </div>
+  <div class="grid3" style="margin-top: 22px; gap: 14px">
+    <div class="glass" style="padding: 16px 20px"><div class="mono v" style="font-size:12.5px; letter-spacing:.14em">TYPED AGENTS</div><p style="margin:6px 0 0; font-size: 17px">Every agent returns schema-checked output; the fit checker is plain code, so a model can't wave a misfit through.</p></div>
+    <div class="glass" style="padding: 16px 20px"><div class="mono v" style="font-size:12.5px; letter-spacing:.14em">SAFE BY DESIGN</div><p style="margin:6px 0 0; font-size: 17px">Secrets in Secret Manager; photos scrubbed before they leave; calls and email only from the owner's devices.</p></div>
+    <div class="glass" style="padding: 16px 20px"><div class="mono v" style="font-size:12.5px; letter-spacing:.14em">SHIP &amp; OBSERVE</div><p style="margin:6px 0 0; font-size: 17px">Cloud Build → Cloud Run; each Gemini call labelled in Cloud Logging, with a daily cost cap.</p></div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>08</span></div>
+</section>
+
+<!-- 9 Technologies -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Technologies used</div>
+  <h2 style="font-size: 52px">Google AI at the core, <span class="soft">open tools around it.</span></h2>
+  <div class="grid3" style="margin-top: 28px">
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">GOOGLE AI</div><ul style="margin-top: 14px">
+      <li style="font-size: 19px">Gemini 3 Flash on Vertex AI (reasoning, vision, video)</li>
+      <li style="font-size: 19px">Gemini Live native audio (voice + phone calls)</li>
+      <li style="font-size: 19px">Gemini image (ideas, shop the look) · Gemini TTS</li>
+      <li style="font-size: 19px">Vertex AI Search · Grounding with Google Search</li>
+      <li style="font-size: 19px; margin-bottom:0">Agent Development Kit · Agent Engine Sessions &amp; Memory Bank</li></ul></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">GOOGLE CLOUD</div><ul style="margin-top: 14px">
+      <li style="font-size: 19px">Cloud Run (API, WebSockets)</li>
+      <li style="font-size: 19px">Firebase Hosting</li>
+      <li style="font-size: 19px">Firestore · Cloud Storage</li>
+      <li style="font-size: 19px">Secret Manager · Cloud Build · Artifact Registry</li>
+      <li style="font-size: 19px; margin-bottom:0">Cloud Logging (every Gemini call labelled)</li></ul></div>
+    <div class="glass"><div class="mono v" style="font-size:13px; letter-spacing:.16em">APP &amp; INTEGRATIONS</div><ul style="margin-top: 14px">
+      <li style="font-size: 19px">Python · FastAPI · Pydantic typed outputs</li>
+      <li style="font-size: 19px">React · TypeScript · Vite · WebGL orb</li>
+      <li style="font-size: 19px">Twilio Media Streams (phone) · WhatsApp</li>
+      <li style="font-size: 19px">Gmail SMTP/IMAP</li>
+      <li style="font-size: 19px; margin-bottom:0">Demo film: Lyria music, Gemini TTS voices</li></ul></div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>09</span></div>
+</section>
+
+<!-- 10 Estimated cost -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Estimated implementation cost</div>
+  <h2 style="font-size: 52px">About ₹25–45 per complete journey, <span class="soft">near zero when idle.</span></h2>
+  <div class="grid2" style="margin-top: 28px; gap: 22px">
+    <div class="glass" style="padding: 24px">
+      <table class="ct">
+        <tr><th>Per shopper journey (estimate)</th><th>USD</th></tr>
+        <tr><td>Gemini text, vision and planning calls</td><td>0.02–0.05</td></tr>
+        <tr><td>Gemini image: 3 ideas + 1 shoppable picture</td><td>0.15–0.20</td></tr>
+        <tr><td>Gemini Live voice, ~3 minutes</td><td>0.05–0.10</td></tr>
+        <tr><td>Vertex AI Search, ~5 queries</td><td>~0.02</td></tr>
+        <tr><td>One AI phone call to a maker, ~2 minutes</td><td>0.10–0.15</td></tr>
+        <tr class="tot"><td>Total</td><td>≈ 0.30–0.50</td></tr>
+      </table>
+    </div>
+    <div style="display:flex; flex-direction:column; gap: 14px">
+      <div class="glass" style="padding: 22px"><h3>Fixed running cost</h3><p style="margin: 8px 0 0; font-size: 19px">Cloud Run scales to zero, Firebase Hosting is free tier, Firestore and Storage stay in single-digit dollars a month at prototype scale.</p></div>
+      <div class="glass" style="padding: 22px"><h3>Built-in cost guard</h3><p style="margin: 8px 0 0; font-size: 19px">Every Gemini call is labelled; a daily cap limits model and image calls per visitor on the public demo.</p></div>
+      <div class="frost" style="padding: 22px"><p style="margin: 0; font-size: 19px">One avoided return or one won custom order pays for many journeys.</p></div>
+    </div>
+  </div>
+  <p class="mono" style="font-size: 13px; color: var(--muted); margin-top: 16px">Estimates at public list prices, October 2026; actual cost depends on images per journey and call minutes.</p>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>10</span></div>
+</section>
+
+<!-- 11 Snapshots -->
+<section class="slide tpl" style="padding-top: 128px">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Snapshots of the prototype</div>
+  <div class="snaps">
+    <figure><img src="img/v2_ideas.jpg" /><figcaption>Ideas drawn into your own photo</figcaption></figure>
+    <figure><img src="img/v2_shoplook.jpg" /><figcaption>Shop the look - real, tagged products</figcaption></figure>
+    <figure><img src="img/v2_agent.jpg" /><figcaption>Checkout agent: cart, PIN, cash on delivery</figcaption></figure>
+    <figure><img src="img/v2_glass.jpg" /><figcaption>MetaGlass: Gemini Live sees the desk</figcaption></figure>
+    <figure><img src="img/v2_tote_steps.jpg" /><figcaption>Steps re-planned for 500 tote bags</figcaption></figure>
+    <figure><img src="img/v3_callviz.jpg" /><figcaption>A live AI phone call with a print studio</figcaption></figure>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>11</span></div>
+</section>
+
+<!-- 12 Performance -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Prototype performance</div>
+  <h2 style="font-size: 52px">Measured on the live app, <span class="soft">end to end.</span></h2>
+  <div class="grid4" style="margin-top: 28px; gap: 14px">
+    <div class="glass perf"><div class="stat v">~2.5 s</div><span>from you stopping speaking to the voice agent answering</span></div>
+    <div class="glass perf"><div class="stat v">~60 s</div><span>to draw 3 ideas into your own photo, each tagged</span></div>
+    <div class="glass perf"><div class="stat v">43</div><span>real listings for 3 idea products, plus a shoppable picture, in ~80 s</span></div>
+    <div class="glass perf"><div class="stat v">6</div><span>real makers found in parallel with the store search</span></div>
+    <div class="glass perf"><div class="stat">2.5 min</div><span>live AI phone call; 8 answers captured and turned into a checked quote</span></div>
+    <div class="glass perf"><div class="stat">&lt; 20 s</div><span>to find a business's published email and phone on its own site</span></div>
+    <div class="glass perf"><div class="stat">1 fps</div><span>camera frames to Gemini Live in MetaGlass mode</span></div>
+    <div class="glass perf"><div class="stat">3</div><span>devices in sync on one project - step, scroll and agent activity</span></div>
+  </div>
+  <p class="mono" style="font-size: 13px; color: var(--muted); margin-top: 18px">Single runs on Cloud Run (asia-southeast1), 18 Oct 2026 - indicative, not a load test. Automated end-to-end checks cover brief, search, fit checks, looks, outreach and orders.</p>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>12</span></div>
+</section>
+
+<!-- 13 Future -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Additional details / future development</div>
+  <h2 style="font-size: 52px">From one desk <span class="soft">to how India buys anything custom.</span></h2>
+  <div class="route" style="margin-top: 24px"><i style="width: 30%"></i><b style="left: 30%"></b></div>
+  <div class="grid4">
+    <div class="frost"><div class="mono" style="color:#5b7a00; font-size: 13px; letter-spacing: .16em">NOW</div><h3 style="margin-top:8px">Live agent</h3><p style="font-size:17px; margin-bottom:0">Ideas in your photo, real stores and makers, live AI calls, checkout agent, three devices in sync.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">NEXT</div><h3 style="margin-top:8px">Makers at scale</h3><p style="font-size:17px; margin-bottom:0">WhatsApp Business, Indian phone numbers, Hindi and Tamil voices.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">THEN</div><h3 style="margin-top:8px">One-tap orders</h3><p style="font-size:17px; margin-bottom:0">Agent-ready checkout with store and UPI partners; a real smart-glasses app.</p></div>
+    <div class="glass"><div class="mono v" style="font-size: 13px; letter-spacing: .16em">LATER</div><h3 style="margin-top:8px">B2B sourcing</h3><p style="font-size:17px; margin-bottom:0">Bulk briefs, samples, pooled demand when minimum quantities block a maker.</p></div>
+  </div>
+  <div class="grid2" style="margin-top: 18px; gap: 18px">
+    <div class="glass" style="padding: 18px 22px"><h3>Scalability</h3><p style="margin: 6px 0 0; font-size: 17px">Stateless Cloud Run instances, Firestore state, per-project WebSockets; agents run in parallel and stream progress.</p></div>
+    <div class="glass" style="padding: 18px 22px"><h3>Business model</h3><p style="margin: 6px 0 0; font-size: 17px">Free for shoppers; a disclosed fee on orders and quotes won; subscriptions for makers who want qualified briefs.</p></div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>13</span></div>
+</section>
+
+<!-- 14 Links + user guide -->
+<section class="slide tpl">
+  <img class="hdr" src="img/tpl_header.png" />
+  <div class="bg"></div>
+  <div class="k">Links</div>
+  <h2 style="font-size: 52px">Try it - <span class="soft">no sign-up.</span></h2>
+  <div class="grid2" style="margin-top: 28px; grid-template-columns: 1.15fr .85fr; gap: 26px">
+    <div style="display:flex; flex-direction:column; gap: 14px">
+      <div class="glass lnk"><span>GitHub public repository</span><b><a href="https://github.com/ashfaque-rifaye/project-tesselle">github.com/ashfaque-rifaye/project-tesselle</a></b></div>
+      <div class="glass lnk"><span>Demo video link (3 minutes)</span><b><a href="https://project-tesselle.web.app/demo/tesselle-demo.mp4">project-tesselle.web.app/demo/tesselle-demo.mp4</a></b></div>
+      <div class="glass lnk" style="border-color: rgba(215,255,60,.5)"><span>Final product link</span><b><a href="https://project-tesselle.web.app">project-tesselle.web.app</a></b><small>Cloud Run: <a href="https://tesselle-448771854429.asia-southeast1.run.app">tesselle-448771854429.asia-southeast1.run.app</a></small></div>
+    </div>
+    <div class="glass" style="padding: 22px">
+      <div class="mono v" style="font-size:13px; letter-spacing:.16em">USER GUIDE</div>
+      <ol class="guide">
+        <li><b>Start talking</b> on the homepage (or type) - e.g. "a desk organiser for my messy desk, under ₹5,000".</li>
+        <li>Add a photo of the space when asked; confirm the brief.</li>
+        <li>Say "show me ideas", then "shop the second one".</li>
+        <li>Open <b>Shop the look</b>, add picks, and let the checkout agent fill the cart.</li>
+        <li>Or try <b>MetaGlass mode</b>, or "Watch it run" for a guided demo.</li>
+      </ol>
+      <div style="display:flex; gap: 14px; align-items:center; margin-top: 8px"><img src="img/v2_qr.png" style="width: 120px; height: 120px; border-radius: 12px" /><span class="muted" style="font-size: 16px">Scan to open on your phone. Calls and email go out only from the owner's devices.</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Mindflayer · Tesselle</span><span>14</span></div>
+</section>
+
+<!-- 15 Thank you (template) -->
+<section class="slide" style="padding: 0; background: #000">
+  <img src="img/tpl_thanks.png" style="position:absolute; inset:0; width:1600px; height:900px; object-fit: cover" />
+</section>
+
+</body>
+</html>

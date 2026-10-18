@@ -7,9 +7,10 @@
 | Live app (Firebase Hosting) | https://project-tesselle.web.app |
 | Live app / API (Cloud Run) | https://tesselle-448771854429.asia-southeast1.run.app |
 | Pitch deck (PDF) | `deck/Project-Tesselle-Pitch-Deck.pdf` |
-| Demo video (2:42) | `submission/Project-Tesselle-demo.mp4` + `submission/Project-Tesselle-demo-captions.srt` (upload to YouTube/Drive and paste the link) |
+| Demo video (2:54) | https://project-tesselle.web.app/demo/tesselle-demo.mp4 |
 | Public GitHub repo | https://github.com/ashfaque-rifaye/project-tesselle |
 | Theme | Retail & Commerce |
+| Team | Mindflayer: Ashfaque Rifaye (lead), Vasanth Kumar |
 
 ## One-line pitch
 
@@ -17,18 +18,11 @@ Project Tesselle is a personal shopping agent for things that have to fit - it t
 glance through smart glasses into a brief, finds real stores and real makers that deliver to you, and never lets a
 seller quietly change what you need.
 
-## Short description (about 150 words)
+## Brief description
 
-Shoppers know exactly what they need, but similar-looking products often miss the one thing that mattered, and
-seller counteroffers quietly rewrite requirements. Project Tesselle captures what you want multimodally (voice with
-live speech-to-text, photos, video, Gemini-imagined concepts, MetaGlass captures) and Gemini agents turn it into a
-brief you can edit and revert at any step - or you just talk to a real-time Gemini Live voice agent that fills it in
-and drives the app. An ADK graph workflow runs a shopping agent and a maker scout in parallel using Gemini with
-Grounding with Google Search, returning real listings and makers that deliver to your PIN code, each checked against
-your must-haves by deterministic code. Gemini composes the real products into your own room photo with shoppable
-hotspots. The outreach agent emails or phones makers with privacy-scrubbed photos; a reply reader checks the answers
-and blocks any change to a must-have until you decide. Several picks become several orders the checkout agent
-prepares, and an order tracker keeps your history.
+Tesselle is a voice-first shopping agent for things that have to fit: a desk organiser for a cramped desk, 500 printed tote bags for an event. You say it, show a photo, or look through simulated smart glasses. It writes a brief of your must-haves, plans the steps, draws ideas into your own photo and finds real products from Indian stores that deliver to your PIN. If nothing fits, it finds real makers, emails them and phones them with an AI voice agent that gets a quote. Every option is checked against your must-haves; a checkout agent fills the cart and you place the order.
+
+Google services: Gemini 3 Flash on Vertex AI (briefs, planning, vision); Gemini Live (voice assistant, glasses camera, live phone calls); Gemini image (ideas in your photo, shop the look); Gemini TTS; Vertex AI Search and Grounding with Google Search; ADK multi-agent system with Agent Engine Sessions and Memory Bank; Cloud Run, Firebase Hosting, Firestore, Cloud Storage, Secret Manager, Cloud Build.
 
 ## Google Cloud stack used
 
@@ -65,5 +59,5 @@ Listings and makers come from live web search and link to their real pages; pric
 always happens on the store (the checkout agent fills carts and pre-enters the PIN code; it never handles payment).
 Emails and calls go out only after an explicit confirmation and only from a device holding the owner key, so the public
 demo cannot send from the owner's inbox; WhatsApp opens ready to send. The practice reply used in the guided demo is written by
-Gemini and clearly labelled. Smart-glasses capture works through the phone share sheet (PWA share target) and a
-heads-up capture view; direct streaming from MetaGlass needs Meta's native SDK (roadmap).
+Gemini and clearly labelled. MetaGlass mode simulates smart glasses with the phone or laptop camera; direct streaming
+from real glasses needs the maker's native SDK (roadmap).
